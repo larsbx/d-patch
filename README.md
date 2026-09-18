@@ -98,7 +98,7 @@ documented as approved.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | not started |
+| 1 | Participant identity, role profiles, assignments, status | **identity and access core done**; status ingestion, portal surfaces, and the Android UI remain |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -107,8 +107,12 @@ documented as approved.
 | 7 | Biometric identity assurance | not started |
 | 8 | Break-glass, hardening, pilot | not started |
 
-Slice 0 delivers the skeleton and the contracts, not the domain. `central/lib/dispatch/`
-has a directory per domain and no resources in them yet; that is Slice 1's work.
+Slice 0 delivered the skeleton and the contracts. Slice 1 is being built in
+parts; the identity and access core is in place — organizations, users,
+participants, devices, the versioned role definitions and assignments, the
+capability registry, the six seeded role profiles, and their allow and deny
+tests. Status ingestion, the Phoenix role surfaces, Datastar streams, and the
+Android offline status UI are the remainder.
 
 ## Contributing
 
