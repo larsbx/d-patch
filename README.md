@@ -141,7 +141,15 @@ revisits. An unrelated subject returns the same 404 as one that does not exist
 (§26.3's `fact_badge`), because §1's four kinds of information are only distinct
 if the page says which it is showing.
 
-Datastar streams (§24.5) and the Android offline status UI (§25.2) are the
+The participant stream of §24.5 is live at
+`GET /ui/participants/:id/stream`. Its authorization is per *tick* rather than
+per connection: a page authorizes once and is gone, while a stream keeps
+answering for hours, so every heartbeat revalidates the assignment behind it.
+That is what makes acceptance criterion 16 — a dispatcher losing the stream
+*immediately* when the relationship ends — true of an idle socket and not only
+of one that happens to receive an event.
+
+The operations roster stream and the Android offline status UI (§25.2) are the
 remainder.
 
 ## Contributing
