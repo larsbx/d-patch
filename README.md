@@ -101,7 +101,7 @@ documented as approved.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads, parties, status declarations and the audit chain done**; the HTTP surface, portal pages, and the Android UI remain |
+| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads, parties, status declarations, the audit chain, and the `/v1` status-ingestion surface done**; portal pages and the Android UI remain |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -115,9 +115,18 @@ parts. In place: organizations, users, participants, devices, the versioned
 role definitions and assignments, the capability registry and six seeded role
 profiles; loads, stops, assignments, and the load- and stop-party relationships
 that §22.2 requires *in addition to* a role assignment; and participant status
-declarations behind Ash policies, with a hash-chained audit stream. The `/v1`
-HTTP surface, the Phoenix role surfaces, Datastar streams, and the Android
-offline status UI are the remainder.
+declarations behind Ash policies, with a hash-chained audit stream.
+
+The machine API is now reachable: OIDC bearer tokens are verified against the
+issuer's published keys, §24.6's `X-Role-Assignment-ID` selects the single role
+assignment a request acts under, and `POST /v1/me/status-events` — with the
+`DRIVER` compatibility projection at `POST /v1/driver/status-events` — records a
+declaration behind the same Ash policies, honouring `Idempotency-Key` and
+device-sequence deduplication. Errors are RFC 9457 problems with stable reason
+codes.
+
+The Phoenix role surfaces, Datastar streams, and the Android offline status UI
+are the remainder.
 
 ## Contributing
 

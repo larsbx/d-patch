@@ -46,14 +46,16 @@ check() {
 # and forces a sentence explaining why the bypass is correct.
 #
 # This check reads raw source rather than going through code-lines.py, because
-# the marker is a comment and that script strips comments by design.
+# the marker is a comment and that script strips comments by design. It skips
+# `@doc`/`@moduledoc` blocks itself, so prose explaining the rule does not
+# violate it.
 #
 # Test files are excluded. They construct fixtures directly on purpose; what
 # Section 21.1 protects is the running system, and a policy that held only
 # because a test bypassed it would fail that policy's own deny test.
 echo "== Section 21.1: authorize?: false outside migrations, seeds, and code marked REVIEWED-UNAUTHORIZED"
 unreviewed=$(python3 - <<'PYEOF'
-import pathlib, re, sys
+import pathlib, re
 
 MARKER = "REVIEWED-UNAUTHORIZED"
 # Wide enough that a real justification fits above the line it explains. A
@@ -61,12 +63,37 @@ MARKER = "REVIEWED-UNAUTHORIZED"
 # excused one, which inverts what this check is for.
 WINDOW = 14
 pattern = re.compile(r"authorize\?:\s*false")
+doc_open = re.compile(r'^\s*@(module|type|typed|)doc\s+~?[A-Za-z]?"""')
 offenders = []
+
+
+def in_doc_block(lines):
+    """Which lines sit inside a `@doc`/`@moduledoc` heredoc.
+
+    Documenting why a bypass needs a justification must not fail the check that
+    asks for one — the same reasoning that sends the other invariants through
+    scripts/code-lines.py. This check cannot use that script, because the marker
+    it looks for is itself a comment, so doc blocks are skipped here instead.
+    """
+    inside = [False] * len(lines)
+    open_at = None
+    for index, line in enumerate(lines):
+        if open_at is None:
+            if doc_open.match(line):
+                open_at = index
+                inside[index] = True
+        else:
+            inside[index] = True
+            if line.strip() == '"""':
+                open_at = None
+    return inside
+
 
 for path in sorted(pathlib.Path("central/lib").rglob("*.ex")):
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    documentation = in_doc_block(lines)
     for number, line in enumerate(lines, start=1):
-        if not pattern.search(line):
+        if documentation[number - 1] or not pattern.search(line):
             continue
         context = lines[max(0, number - 1 - WINDOW):number]
         if not any(MARKER in c for c in context):
