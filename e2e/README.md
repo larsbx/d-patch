@@ -13,8 +13,11 @@ npx playwright install --with-deps chromium
 npx playwright test
 ```
 
-Override the target with `E2E_BASE_URL`. Set `DIAGNOSTICS_TOKEN` to exercise the
-authenticated dependency report.
+The suite targets the reverse proxy on `:8080`, not the application on `:4000`.
+Section 27.3 reconstructs the public webhook URL from forwarded headers and
+Section 26.1 pins a CSP; neither is exercised by talking to the application
+port. Override with `E2E_BASE_URL` to test a different origin. Set
+`DIAGNOSTICS_TOKEN` to exercise the authenticated dependency report.
 
 ## Projects
 

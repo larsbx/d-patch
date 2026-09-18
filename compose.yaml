@@ -94,6 +94,27 @@ services:
       retries: 30
       start_period: 40s
 
+  reverse-proxy:
+    # In the stack because Section 27.3 validates a provider webhook signature
+    # against the exact public URL, reconstructed from forwarded headers, and
+    # Section 26.1 pins a CSP that must permit the configured map adapter's
+    # origins. Running the app only on its own port hides every mistake in
+    # either. The `playwright` gate targets this port so both are exercised.
+    image: caddy:2-alpine
+    depends_on:
+      central:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infra/reverse-proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
 volumes:
   postgres-data:
   central-build:

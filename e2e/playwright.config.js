@@ -3,10 +3,15 @@
 // The suite runs against the Compose stack rather than a mocked backend: every
 // scenario in Section 33.4 is about what the server authorizes and renders, so
 // a mock would assert nothing worth asserting.
+//
+// It targets the reverse proxy, not the application port. Section 27.3
+// reconstructs the public webhook URL from forwarded headers and Section 26.1
+// pins a CSP; testing against `central:4000` directly would leave both
+// untested while the gate stayed green.
 
 import { defineConfig, devices } from "@playwright/test";
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:4000";
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8080";
 
 export default defineConfig({
   testDir: "./tests",
