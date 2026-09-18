@@ -148,7 +148,8 @@ remainder.
 
 - Section 19 makes **MUST**, **MUST NOT**, **SHOULD**, and **MAY** normative.
   Replacing a MUST requires an ADR and approval — see `docs/adr/0000-template.md`.
-- A pull request cannot merge with a failing CI gate (§33.5).
+- A pull request cannot merge with a failing CI gate (§33.5). `scripts/verify.sh`
+  runs the gates that need no database or browser; `--all` adds the rest.
 - `contracts/openapi.json` is generated. Run `mix openapi.generate` in
   `central/` and commit the result; `openapi-diff` fails on drift.
 - Section 35's definition of done applies per slice, not per pull request.
