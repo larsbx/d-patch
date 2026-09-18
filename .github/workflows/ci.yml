@@ -85,7 +85,7 @@ jobs:
           key: dialyzer-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
       - run: mix deps.get
         working-directory: central
-      - run: mix dialyzer --format dialyxir
+      - run: mix dialyzer --format github
         working-directory: central
 
   unit:
