@@ -15,6 +15,27 @@ defmodule DispatchWeb.Router do
 
   import Plug.Conn
 
+  # Passed through Phoenix's own `put_secure_browser_headers` rather than set by
+  # hand. Writing the headers directly worked and cost the framework's baseline —
+  # and a scanner reading the pipeline could not tell a deliberate set from a
+  # forgotten one, which is a fair complaint: the next person adding a pipeline
+  # has the same trouble.
+  #
+  # Section 26.1 prohibits inline scripts, which is what makes the absence of
+  # `unsafe-inline` here load-bearing rather than tidy, and Section 24.7 wants
+  # `no-referrer` rather than the framework's cross-origin default.
+  @portal_headers %{
+    "content-security-policy" =>
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; " <>
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "referrer-policy" => "no-referrer",
+    # The framework defaults this to SAMEORIGIN, which would disagree with the
+    # `frame-ancestors 'none'` above. Modern browsers take the CSP and ignore
+    # this header, so the disagreement is invisible until one does not — and a
+    # reader comparing the two has no way to tell which was intended.
+    "x-frame-options" => "DENY"
+  }
+
   pipeline :health do
     plug :accepts, ["json"]
     plug :put_no_store
@@ -44,6 +65,68 @@ defmodule DispatchWeb.Router do
 
     get "/live", HealthController, :live
     get "/ready", HealthController, :ready
+  end
+
+  # Section 26.1: scripts from this origin only, and no inline scripts. The
+  # Datastar bundle is served from `priv/static/vendor`, so `self` is the whole
+  # allowance a first-release portal needs; Section 28.5's map adapter is what
+  # will widen it, and Section 26.1 requires that widening to be a CSP change
+  # with a test rather than an edit to a page template.
+  pipeline :portal do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers, @portal_headers
+    plug :put_no_store
+    plug DispatchWeb.Plugs.PortalSession
+  end
+
+  # Sign-in and role selection cannot require a resolved actor: they are how one
+  # is obtained. Same headers and CSRF protection, no actor.
+  pipeline :portal_public do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers, @portal_headers
+    plug :put_no_store
+  end
+
+  scope "/", DispatchWeb do
+    pipe_through :portal_public
+
+    get "/login", SessionController, :login
+    post "/session", SessionController, :create
+    delete "/session", SessionController, :delete
+  end
+
+  # Role selection sits between the two: it needs an authenticated subject and
+  # must *not* require a resolved actor, because choosing one is what it is for.
+  # Guarding it with `PortalSession` sends exactly the multi-assignment users who
+  # need the switcher into a redirect loop — and only them, so a suite built on
+  # single-assignment fixtures never meets it.
+  pipeline :portal_choosing do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers, @portal_headers
+    plug :put_no_store
+    plug DispatchWeb.Plugs.RequireSubject
+  end
+
+  scope "/", DispatchWeb do
+    pipe_through :portal_choosing
+
+    get "/select-role", SessionController, :select_role
+    post "/select-role", SessionController, :choose_role
+  end
+
+  scope "/", DispatchWeb do
+    pipe_through :portal
+
+    # Section 4.3's primary routes. Section 26.2 fixes the paths.
+    get "/partner/stops/:stop_id", PortalController, :partner_stop
+    get "/operations/participants/:participant_id", PortalController, :operations_participant
+    get "/operations/drivers/:driver_id", PortalController, :operations_driver
   end
 
   scope "/v1", DispatchWeb do

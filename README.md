@@ -101,7 +101,7 @@ documented as approved.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads, parties, status declarations, the audit chain, and the `/v1` status-ingestion surface done**; portal pages and the Android UI remain |
+| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads, parties, status declarations, the audit chain, the `/v1` status-ingestion surface, and the role-scoped portal pages done**; Datastar streams and the Android UI remain |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -125,14 +125,31 @@ declaration behind the same Ash policies, honouring `Idempotency-Key` and
 device-sequence deduplication. Errors are RFC 9457 problems with stable reason
 codes.
 
-The Phoenix role surfaces, Datastar streams, and the Android offline status UI
-are the remainder.
+The portal is role-scoped and server-rendered. A browser session holds the
+authenticated subject and the selected role assignment, both revalidated on
+every request (§24.6), and §4.3's switcher is how a user holding several
+assignments says which one they are acting under. Two surfaces are live:
+`/partner/stops/:id` for shippers and receivers, and
+`/operations/participants/:id` with its `DRIVER` compatibility projection.
+
+The field-authorization boundary is a view model rather than a filter. §4.3's
+prohibition list — no driver timeline, route trace, unrelated stops, negotiated
+rate or carrier notes on a partner page — holds because those structs have
+nowhere to put them, so a leak is a compile error rather than a policy nobody
+revisits. An unrelated subject returns the same 404 as one that does not exist
+(acceptance criterion 19), and every fact carries its source and freshness
+(§26.3's `fact_badge`), because §1's four kinds of information are only distinct
+if the page says which it is showing.
+
+Datastar streams (§24.5) and the Android offline status UI (§25.2) are the
+remainder.
 
 ## Contributing
 
 - Section 19 makes **MUST**, **MUST NOT**, **SHOULD**, and **MAY** normative.
   Replacing a MUST requires an ADR and approval — see `docs/adr/0000-template.md`.
-- A pull request cannot merge with a failing CI gate (§33.5).
+- A pull request cannot merge with a failing CI gate (§33.5). `scripts/verify.sh`
+  runs the gates that need no database or browser; `--all` adds the rest.
 - `contracts/openapi.json` is generated. Run `mix openapi.generate` in
   `central/` and commit the result; `openapi-diff` fails on drift.
 - Section 35's definition of done applies per slice, not per pull request.
