@@ -327,7 +327,7 @@
             "type": "string"
           },
           "event_id": {
-            "description": "Client-assigned event ID.",
+            "description": "Client-assigned UUIDv7. Becomes the stored event's ID, so an offline client can reconcile by the identifier it recorded before uploading. Omitted, the server assigns one. Already in use: 409 EVENT_ID_CONFLICT.",
             "format": "uuid",
             "type": "string"
           },

@@ -13,19 +13,44 @@ defmodule Dispatch.Identity.Tokens.Oidc do
   is the confused-deputy attack `OIDC_AUDIENCE` exists to stop.
 
   Keys are cached with a bounded lifetime rather than forever, so a rotated
-  signing key is picked up without a restart. A cache miss on an unknown `kid`
-  forces one refresh — that is what makes rotation work at all — but exactly
-  one, so unknown key IDs cannot be used to drive unbounded outbound requests.
+  signing key is picked up without a restart.
+
+  ## Refreshing without becoming an amplifier
+
+  An unknown `kid` has to be able to force a refresh — that is the whole
+  mechanism by which a rotated key becomes usable without a restart. Doing it
+  once *per request* is the trap: verification runs before any authentication
+  has succeeded, so anyone able to reach the endpoint could drive one discovery
+  call and one JWKS fetch, each with its own timeout, simply by inventing key
+  IDs. The cost lands on this service's connection pool and on the issuer, and
+  no valid token is needed to spend it.
+
+  So a refresh is not something a request performs.
+  `Dispatch.Identity.Tokens.KeyStore` owns it: callers queue behind one process,
+  the first refresh updates the cache, and the rest are answered from it. A
+  cooldown there bounds how often a fetch can happen at all — and because it
+  lives inside a single process rather than in a read-check-write over shared
+  memory, a simultaneous burst cannot slip past it, which is precisely what a
+  timestamp in `:persistent_term` could not promise.
+
+  Cache *reads* stay here, on the calling process. Routing those through the
+  store would serialise all token verification behind one mailbox, and a key
+  already cached needs no coordination.
   """
 
   @behaviour Dispatch.Identity.Tokens.Verifier
 
-  alias Dispatch.Identity.Tokens.Verifier
+  alias Dispatch.Identity.Tokens.{KeyStore, Verifier}
 
   require Logger
 
   @cache_ttl_ms :timer.minutes(10)
-  @request_timeout_ms 5_000
+
+  # One refresh is two sequential requests: discovery, then the JWKS it names.
+  @requests_per_refresh 2
+  @pool_timeout_ms 2_000
+  @receive_timeout_ms 5_000
+  @default_connect_timeout_ms 3_000
 
   # Asymmetric only. Accepting an HMAC algorithm would make the published JWKS a
   # *signing* key, letting anyone who can read it mint tokens; `none` would
@@ -109,22 +134,24 @@ defmodule Dispatch.Identity.Tokens.Oidc do
     end
   end
 
+  # A cache hit answers without leaving this process. Only a miss goes to the
+  # key store, which is the one place a refresh can be started from.
   defp signing_key(kid) do
     case cached_key(kid) do
-      {:ok, jwk} ->
-        {:ok, jwk}
-
-      :error ->
-        with :ok <- refresh_keys(), {:ok, jwk} <- cached_key(kid) do
-          {:ok, jwk}
-        else
-          {:error, :unavailable} -> {:error, :unavailable}
-          _still_unknown -> {:error, :invalid_token}
-        end
+      {:ok, jwk} -> {:ok, jwk}
+      :error -> KeyStore.ensure(kid)
     end
   end
 
-  defp cached_key(kid) do
+  @doc """
+  The key for `kid` if the cache holds one and has not gone stale.
+
+  Public so `Dispatch.Identity.Tokens.KeyStore` can re-check it after queueing:
+  by the time a queued call is served, an earlier one may already have fetched
+  the key it is asking for.
+  """
+  @spec cached_key(String.t()) :: {:ok, JOSE.JWK.t()} | :error
+  def cached_key(kid) do
     case :persistent_term.get({__MODULE__, :jwks}, nil) do
       %{fetched_at: fetched_at, keys: keys} ->
         if System.monotonic_time(:millisecond) - fetched_at < @cache_ttl_ms,
@@ -136,7 +163,43 @@ defmodule Dispatch.Identity.Tokens.Oidc do
     end
   end
 
-  defp refresh_keys do
+  @doc """
+  The worst-case wall time one `refresh_keys/0` may take.
+
+  Computed rather than chosen, because `Dispatch.Identity.Tokens.KeyStore` waits
+  on this call and a deadline shorter than the work it covers is not a timeout —
+  it is a way to report `:unavailable` for a key that was about to arrive, while
+  the refresh carries on unobserved behind it. Each of the two requests may
+  spend its pool wait, its connect allowance and its receive wait in turn.
+  """
+  @spec refresh_budget_ms() :: pos_integer()
+  def refresh_budget_ms do
+    @requests_per_refresh * (@pool_timeout_ms + connect_timeout_ms() + @receive_timeout_ms)
+  end
+
+  @doc """
+  The configured connect allowance, guarded.
+
+  A non-positive or non-integer value would make the budget meaningless rather
+  than merely wrong, so it falls back to the default instead of propagating.
+  """
+  @spec connect_timeout_ms() :: pos_integer()
+  def connect_timeout_ms do
+    case Application.get_env(:dispatch, :http_connect_timeout_ms, @default_connect_timeout_ms) do
+      ms when is_integer(ms) and ms > 0 -> ms
+      _unusable -> @default_connect_timeout_ms
+    end
+  end
+
+  @doc """
+  Fetches the issuer's JWKS and replaces the cached keys.
+
+  Public only for `Dispatch.Identity.Tokens.KeyStore`, which serialises calls to
+  it. Calling this from a request path would reintroduce exactly the per-request
+  fetch the store exists to prevent.
+  """
+  @spec refresh_keys() :: :ok | {:error, :unavailable}
+  def refresh_keys do
     with {:ok, jwks_uri} <- discover_jwks_uri(),
          {:ok, %{"keys" => keys}} when is_list(keys) <- get_json(jwks_uri) do
       :persistent_term.put({__MODULE__, :jwks}, %{
@@ -164,6 +227,11 @@ defmodule Dispatch.Identity.Tokens.Oidc do
   end
 
   defp discover_jwks_uri do
+    # Emitted per attempt, which is the quantity the key store's cooldown
+    # bounds. A test can then assert that bound by counting, rather than by
+    # asserting the mechanism that is supposed to produce it.
+    :telemetry.execute([:dispatch, :oidc, :discovery], %{count: 1}, %{})
+
     case get_json(String.trim_trailing(issuer_config() || "", "/") <> discovery_path()) do
       {:ok, %{"jwks_uri" => uri}} when is_binary(uri) -> {:ok, uri}
       _unavailable -> {:error, :unavailable}
@@ -182,8 +250,8 @@ defmodule Dispatch.Identity.Tokens.Oidc do
     :get
     |> Finch.build(url, [{"accept", "application/json"}])
     |> Finch.request(Dispatch.Finch,
-      receive_timeout: @request_timeout_ms,
-      pool_timeout: @request_timeout_ms
+      receive_timeout: @receive_timeout_ms,
+      pool_timeout: @pool_timeout_ms
     )
     |> case do
       {:ok, %Finch.Response{status: 200, body: body}} ->

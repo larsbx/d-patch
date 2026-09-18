@@ -47,6 +47,15 @@ Two consequences of that choice are load-bearing:
   request treated as fresh, whether or not a sweep has run. Section 24's
   twenty-four hours is a bound; a bound that holds only while a job is running
   is not one.
+- **The claim, the mutation and the stored response commit together.**
+  `execute/4` runs all three in one transaction. Written separately they have a
+  window: a process dying between the mutation and the record leaves a key
+  claimed with nothing behind it, and no later reader can tell whether the work
+  happened. A lease on such a claim only picks which way to be wrong — refuse
+  the retry and the key is dead until it expires, or admit it and the mutation
+  runs twice. In one transaction the question does not arise. A concurrent copy
+  blocks on the uncommitted claim rather than racing past it, bounded by
+  `lock_timeout` so one slow request cannot pile up every retry behind it.
 
 Only a stored *response* is replayable. A rejected or failed mutation abandons
 its claim, freeing the key, because storing a failure would make a transient
@@ -78,6 +87,14 @@ replay.
 | Key scoped to tenant or user | Section 23.3 makes the role assignment the unit of authority; a broader scope collides across unrelated authority |
 | Look up, then insert after the mutation | Loses the race that retries make routine, and executes the mutation twice |
 | Rely on the retention sweep for expiry | A paused or unshipped job would leave day-old responses replaying indefinitely |
+| Leave in-progress claims until they expire | A crash between the mutation and the record strands the key for a day, and the client's only recourse duplicates the mutation |
+| A lease that lets a retry take over a stale claim | Reuses the claim row but not the mutation's idempotence: the retry re-runs the work, which for a declaration carrying no `event_id` and no device sequence creates a second event — the duplicate the ledger exists to prevent |
+
+A mutation with effects outside this database cannot be covered by this
+transaction, and none of Section 24's mutations has any today. When one does —
+Section 27's outbound messaging is the obvious candidate — the effect belongs
+behind the outbox of Section 22.5, whose row is written in this same
+transaction, rather than performed inline where no transaction can reach it.
 | Store failed responses too | Makes a transient client error permanent for twenty-four hours |
 
 ## Verification
