@@ -56,7 +56,10 @@ unreviewed=$(python3 - <<'PYEOF'
 import pathlib, re, sys
 
 MARKER = "REVIEWED-UNAUTHORIZED"
-WINDOW = 8
+# Wide enough that a real justification fits above the line it explains. A
+# tighter window would fail the better-explained bypass and pass the tersely
+# excused one, which inverts what this check is for.
+WINDOW = 14
 pattern = re.compile(r"authorize\?:\s*false")
 offenders = []
 

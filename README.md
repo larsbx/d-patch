@@ -101,7 +101,7 @@ documented as approved.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads and party relationships done**; status ingestion, portal surfaces, and the Android UI remain |
+| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads, parties, status declarations and the audit chain done**; the HTTP surface, portal pages, and the Android UI remain |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -113,11 +113,11 @@ documented as approved.
 Slice 0 delivered the skeleton and the contracts. Slice 1 is being built in
 parts. In place: organizations, users, participants, devices, the versioned
 role definitions and assignments, the capability registry and six seeded role
-profiles; then loads, stops, assignments, and the load- and stop-party
-relationships that §22.2 requires *in addition to* a role assignment before any
-load- or stop-scoped access is granted. Status ingestion, the Phoenix role
-surfaces, Datastar streams, and the Android offline status UI are the
-remainder.
+profiles; loads, stops, assignments, and the load- and stop-party relationships
+that §22.2 requires *in addition to* a role assignment; and participant status
+declarations behind Ash policies, with a hash-chained audit stream. The `/v1`
+HTTP surface, the Phoenix role surfaces, Datastar streams, and the Android
+offline status UI are the remainder.
 
 ## Contributing
 
