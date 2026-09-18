@@ -34,6 +34,18 @@ profile — `driver@`, `dispatcher@`, `admin@`, `broker@`, `shipper@`,
 published in this repository deliberately so they can never be confused with a
 production secret. Dex stores them in memory; a restart resets everything.
 
+## Seed data
+
+```sh
+make seed
+```
+
+Seeds a carrier tenant, the six role profiles of Section 23.2, and three
+counterparty organizations. It deliberately seeds **no participants and no role
+assignments**: Section 23.2 derives all authority from an assignment, so
+creating one would grant access nobody asked for, and a test that depended on a
+seeded grant would be testing the seed rather than the policy.
+
 ## Reset
 
 ```sh

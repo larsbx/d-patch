@@ -39,10 +39,44 @@ check() {
   fi
 }
 
-check "Section 21.1: authorize?: false is prohibited outside migrations, seeds, and reviewed maintenance code" \
-  'authorize\?:[[:space:]]*false' \
-  'priv/repo/(migrations|seeds)' \
-  -- central/lib central/test
+# Section 21.1 exempts migrations, seed scripts, and narrowly reviewed internal
+# maintenance code. "Reviewed" has to mean something, so the exemption is spelled
+# in the source: each production use must carry a REVIEWED-UNAUTHORIZED comment
+# within the few lines above it, which makes every one of them visible in a diff
+# and forces a sentence explaining why the bypass is correct.
+#
+# This check reads raw source rather than going through code-lines.py, because
+# the marker is a comment and that script strips comments by design.
+#
+# Test files are excluded. They construct fixtures directly on purpose; what
+# Section 21.1 protects is the running system, and a policy that held only
+# because a test bypassed it would fail that policy's own deny test.
+echo "== Section 21.1: authorize?: false outside migrations, seeds, and code marked REVIEWED-UNAUTHORIZED"
+unreviewed=$(python3 - <<'PYEOF'
+import pathlib, re, sys
+
+MARKER = "REVIEWED-UNAUTHORIZED"
+WINDOW = 8
+pattern = re.compile(r"authorize\?:\s*false")
+offenders = []
+
+for path in sorted(pathlib.Path("central/lib").rglob("*.ex")):
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    for number, line in enumerate(lines, start=1):
+        if not pattern.search(line):
+            continue
+        context = lines[max(0, number - 1 - WINDOW):number]
+        if not any(MARKER in c for c in context):
+            offenders.append(f"{path}:{number}:{line.strip()}")
+
+print("\n".join(offenders))
+PYEOF
+)
+if [ -n "$unreviewed" ]; then
+  printf '\n[VIOLATION] %s\n' "Section 21.1: authorize?: false without a REVIEWED-UNAUTHORIZED justification" >&2
+  printf '%s\n' "$unreviewed" >&2
+  violations=$((violations + 1))
+fi
 
 check "Section 35: no placeholder or deferred authorization and security work" \
   '(TODO|FIXME|XXX|HACK).*(auth|polic|permission|verif|secur)' \
@@ -73,6 +107,16 @@ check "Section 28.1: Google SDK types and identifiers must not escape the Google
   '(GoogleMaps|com\.google\.android\.gms\.maps|google\.maps\.)' \
   '(integrations/geo/google|infra/googlemaps|maps/google-adapter\.js)' \
   -- central/lib apps
+
+# Section 34's Slice 1 exit criterion: "no Android feature module or shared Ash
+# policy branches directly on a seeded role key". The role keys are data; a
+# comparison against one in authorization or feature-selection code is the
+# hard-coding the whole capability model exists to avoid. The seed manifest is
+# where they are allowed to appear, because that is what defines them.
+check "Section 23.2: no shared policy or feature module may branch on a seeded role key" \
+  '"(DRIVER|ADMIN|DISPATCHER|SHIPPER|RECEIVER|BROKER)"' \
+  '(access/seed_manifest\.ex|access/roles/|accounts/role_definition\.ex)' \
+  -- central/lib/dispatch/access central/lib/dispatch_web apps
 
 check "Section 26.1: the Datastar bundle must be served from this origin, not a CDN" \
   'src="https?://[^"]*datastar' \
