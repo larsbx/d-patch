@@ -73,6 +73,12 @@ services:
       BREAKGLASS_ENABLED: "false"
       BREAKGLASS_MAX_TTL_SECONDS: "1800"
       BREAKGLASS_NONPROD_SINGLE_USER_MODE: "true"
+    # Section 22 forbids auto-migration on boot in *production*; development is
+    # the case it exempts. Applying them here is what keeps `make up` a single
+    # command (the Slice 0 exit criterion) now that the first migration installs
+    # PostGIS. The production image runs `bin/dispatch start` and never migrates
+    # itself — see docs/runbooks/migrations.md.
+    command: ["sh", "-c", "mix ash.setup && mix phx.server"]
     ports:
       - "4000:4000"
     volumes:

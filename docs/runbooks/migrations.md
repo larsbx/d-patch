@@ -30,7 +30,8 @@ and fails when a resource change has no generated migration.
 
 ## Apply
 
-Development:
+Development applies migrations when the stack starts, so `make up` needs no
+second step. To apply them against an already-running stack:
 
 ```sh
 make migrate

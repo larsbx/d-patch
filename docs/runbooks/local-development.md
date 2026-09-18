@@ -17,9 +17,14 @@ curl -s localhost:4000/health/ready
 curl -s localhost:5556/dex/.well-known/openid-configuration
 ```
 
-`/health/ready` reports `unready` while migrations are pending. That is correct:
-Section 22 forbids auto-migration on boot, so a pending migration is a state an
-operator resolves, not one the service resolves for itself.
+`/health/ready` reports `unready` while migrations are pending.
+
+The development stack applies them on start (`mix ash.setup && mix phx.server`
+in `compose.yaml`), which is why `make up` is one command. Section 22 forbids
+auto-migration on boot in *production* specifically; the production image runs
+`bin/dispatch start` and never migrates itself, so there a pending migration is
+a state an operator resolves deliberately. See
+[`migrations.md`](migrations.md).
 
 ## Development accounts
 
