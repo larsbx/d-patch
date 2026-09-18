@@ -1,0 +1,12 @@
+{
+  "name": "dispatch-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright end-to-end tests (Section 33.4). Runs against the Compose stack.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  }
+}

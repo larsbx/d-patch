@@ -1,0 +1,296 @@
+# Required CI gates (Section 33.5). A pull request cannot merge with a failing
+# gate. Every gate named in the specification has a job here; a gate whose
+# subject does not exist yet still runs, so it turns red the moment the subject
+# lands broken rather than being added later.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ELIXIR_VERSION: "1.19.6"
+  OTP_VERSION: "28.3.3"
+
+jobs:
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { elixir-version: "1.19.6", otp-version: "28.3.3" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            central/deps
+            central/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
+      - run: mix deps.get
+        working-directory: central
+      - run: mix format --check-formatted
+        working-directory: central
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { elixir-version: "1.19.6", otp-version: "28.3.3" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            central/deps
+            central/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
+      - run: mix deps.get
+        working-directory: central
+      - run: mix compile --warnings-as-errors
+        working-directory: central
+      - run: mix credo --strict
+        working-directory: central
+      - name: sobelow
+        run: mix sobelow --config
+        working-directory: central
+      - name: invariant checks
+        # Section 21.1 forbids `authorize?: false` outside migrations, seeds, and
+        # reviewed maintenance code; Section 35 forbids placeholder authorization
+        # and undocumented mocks in production code; Sections 27.1 and 29.0 keep
+        # vendor types inside their adapters. These are textual rules, so they
+        # are checked textually.
+        run: ./scripts/check-invariants.sh
+      - name: Section 20 layout
+        run: ./scripts/check-layout.sh
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { elixir-version: "1.19.6", otp-version: "28.3.3" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            central/deps
+            central/_build
+            central/priv/plts
+          key: dialyzer-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
+      - run: mix deps.get
+        working-directory: central
+      - run: mix dialyzer --format github
+        working-directory: central
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { elixir-version: "1.19.6", otp-version: "28.3.3" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            central/deps
+            central/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
+      - run: mix deps.get
+        working-directory: central
+      # No database service: the unit gate must stay runnable without one.
+      - run: mix test --exclude integration
+        working-directory: central
+
+  integration-postgres:
+    name: integration-postgres
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: dispatch
+          POSTGRES_PASSWORD: dispatch
+          POSTGRES_DB: dispatch_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U dispatch -d dispatch_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: ecto://dispatch:dispatch@localhost:5432/dispatch_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { elixir-version: "1.19.6", otp-version: "28.3.3" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            central/deps
+            central/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
+      - run: mix deps.get
+        working-directory: central
+      - run: mix test.integration
+        working-directory: central
+        env: { MIX_ENV: test }
+
+  android-unit:
+    name: android-unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew testDebugUnitTest --no-daemon
+        working-directory: apps/android-driver
+
+  android-lint:
+    name: android-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew lintDebug --no-daemon
+        working-directory: apps/android-driver
+
+  web-unit:
+    name: web-unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      # Section 26.1 permits only the map custom element and its adapters as
+      # first-party portal JavaScript, so this gate has no build step.
+      - run: node --test test/*.test.js
+        working-directory: web
+
+  playwright:
+    name: playwright
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm ci
+        working-directory: e2e
+      - run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - name: start the stack
+        run: docker compose up -d --wait
+      - run: npx playwright test
+        working-directory: e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+
+  openapi-diff:
+    name: openapi-diff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { elixir-version: "1.19.6", otp-version: "28.3.3" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            central/deps
+            central/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
+      - run: mix deps.get
+        working-directory: central
+      # Section 20: contracts/openapi.json is generated and diff-checked from
+      # the central service, then used to generate the Android client.
+      - run: mix openapi.check
+        working-directory: central
+
+  migration-check:
+    name: migration-check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: dispatch
+          POSTGRES_PASSWORD: dispatch
+          POSTGRES_DB: dispatch_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U dispatch -d dispatch_dev"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: ecto://dispatch:dispatch@localhost:5432/dispatch_dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { elixir-version: "1.19.6", otp-version: "28.3.3" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            central/deps
+            central/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
+      - run: mix deps.get
+        working-directory: central
+      # Section 22 requires generated migrations to be reviewed into the
+      # repository; this fails when a resource change has not been generated.
+      - run: mix ash_postgres.generate_migrations --check
+        working-directory: central
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --redact --config=/repo/.gitleaks.toml
+
+  dependency-audit:
+    name: dependency-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with: { elixir-version: "1.19.6", otp-version: "28.3.3" }
+      - uses: actions/cache@v4
+        with:
+          path: |
+            central/deps
+            central/_build
+          key: mix-${{ runner.os }}-${{ hashFiles('central/mix.lock') }}
+      - run: mix deps.get
+        working-directory: central
+      - run: mix deps.audit
+        working-directory: central
+      - name: retired packages
+        run: mix hex.audit
+        working-directory: central
+
+  container-build:
+    name: container-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build the central release image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/containers/central.Dockerfile
+          target: runtime
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

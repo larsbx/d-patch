@@ -1,0 +1,16 @@
+Copyright (c) 2026 the Dispatch Platform authors.
+
+All rights reserved.
+
+This software is proprietary and confidential. No licence, express or implied,
+is granted to use, copy, modify, merge, publish, distribute, sublicense, or
+sell copies of this software or any portion of it.
+
+Section 20 of the platform specification requires this file to exist. The terms
+above are the default position for an unlicensed private repository and are a
+placeholder for a deliberate licensing decision, which has not been made. They
+are stated explicitly rather than left absent so that the absence of a decision
+is visible.
+
+Third-party components retain their own licences. The vendored browser bundle
+under central/priv/static/vendor/ is covered by central/priv/static/vendor/VENDOR.md.

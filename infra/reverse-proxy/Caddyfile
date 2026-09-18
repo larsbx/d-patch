@@ -1,0 +1,33 @@
+# Development reverse proxy.
+#
+# Section 27.3 reconstructs the exact public webhook URL from trusted proxy
+# configuration before validating a provider signature, so the forwarded host,
+# proto, and port must survive the hop. A proxy that rewrites them silently
+# breaks signature validation, which is why they are set explicitly here rather
+# than left to defaults.
+
+{
+	admin off
+}
+
+:8080 {
+	encode gzip
+
+	# Section 26.1: the CSP permits scripts from self plus the minimum origins
+	# the configured presentation adapter requires, and forbids inline scripts.
+	# Switching map adapters means changing this configuration, not a template.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://maps.googleapis.com; img-src 'self' data: https://*.googleapis.com https://*.gstatic.com; style-src 'self'; connect-src 'self' https://maps.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	reverse_proxy central:4000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Port {server_port}
+	}
+}

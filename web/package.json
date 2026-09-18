@@ -1,0 +1,10 @@
+{
+  "name": "dispatch-portal-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tests for the only first-party portal JavaScript permitted by Section 26.1: the provider-neutral map custom element and its adapters.",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
