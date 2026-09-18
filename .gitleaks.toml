@@ -1,0 +1,21 @@
+# secret-scan gate configuration (Section 33.5).
+
+title = "dispatch-platform"
+
+[extend]
+useDefault = true
+
+[[allowlist]]
+description = """
+Development-only credentials that are published deliberately. The local OIDC
+provider (Section 23.1) ships static passwords so `make up` works on a clean
+checkout; treating them as findings would train reviewers to ignore this gate.
+"""
+paths = [
+  '''infra/oidc/dex\.yaml''',
+  '''\.env\.example''',
+]
+
+[[allowlist]]
+description = "Vendored third-party bundle (Section 26.1), reviewed by hash in VENDOR.md."
+paths = ['''central/priv/static/vendor/.*\.js''']

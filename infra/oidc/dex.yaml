@@ -1,0 +1,64 @@
+# Local OIDC provider for development (Section 23.1).
+#
+# Section 23.1 requires Authorization Code with PKCE for web and Android and a
+# local provider configured in Compose. Everything here is development-only: the
+# static credentials below are published in this repository on purpose, so they
+# can never be mistaken for a production secret.
+
+issuer: http://localhost:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  # PKCE without a client secret is the public-client shape Android uses.
+  skipApprovalScreen: true
+  responseTypes: ["code"]
+
+staticClients:
+  - id: dispatch-api
+    name: Dispatch machine API
+    public: true
+    redirectURIs:
+      - http://localhost:4000/auth/oidc/callback
+      - http://127.0.0.1:4000/auth/oidc/callback
+
+  - id: dispatch-android
+    name: Dispatch field application
+    public: true
+    redirectURIs:
+      - com.example.dispatch:/oauth2redirect
+      - http://localhost:8080/callback
+
+enablePasswordDB: true
+
+# Development identities, one per seeded role profile in Section 23.2. Password
+# for every account is "dispatch" (bcrypt hash below).
+staticPasswords:
+  - email: driver@dispatch.test
+    hash: "$2a$10$sRf27Ug.udLOxvzxwSVfxe6.6oHAQ/QpBQYwl1EVsiVyKsYMJjobm"
+    username: driver
+    userID: "00000000-0000-4000-8000-000000000001"
+  - email: dispatcher@dispatch.test
+    hash: "$2a$10$sRf27Ug.udLOxvzxwSVfxe6.6oHAQ/QpBQYwl1EVsiVyKsYMJjobm"
+    username: dispatcher
+    userID: "00000000-0000-4000-8000-000000000002"
+  - email: admin@dispatch.test
+    hash: "$2a$10$sRf27Ug.udLOxvzxwSVfxe6.6oHAQ/QpBQYwl1EVsiVyKsYMJjobm"
+    username: admin
+    userID: "00000000-0000-4000-8000-000000000003"
+  - email: broker@dispatch.test
+    hash: "$2a$10$sRf27Ug.udLOxvzxwSVfxe6.6oHAQ/QpBQYwl1EVsiVyKsYMJjobm"
+    username: broker
+    userID: "00000000-0000-4000-8000-000000000004"
+  - email: shipper@dispatch.test
+    hash: "$2a$10$sRf27Ug.udLOxvzxwSVfxe6.6oHAQ/QpBQYwl1EVsiVyKsYMJjobm"
+    username: shipper
+    userID: "00000000-0000-4000-8000-000000000005"
+  - email: receiver@dispatch.test
+    hash: "$2a$10$sRf27Ug.udLOxvzxwSVfxe6.6oHAQ/QpBQYwl1EVsiVyKsYMJjobm"
+    username: receiver
+    userID: "00000000-0000-4000-8000-000000000006"

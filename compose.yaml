@@ -1,0 +1,94 @@
+# Development stack (Section 19.1). `make up` starts everything this repository
+# needs; no service here is a production topology.
+name: dispatch-platform
+
+services:
+  postgres:
+    # Section 28.2 makes PostGIS canonical from the first migration, so the
+    # development database ships with the extension rather than adding it later.
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: dispatch
+      POSTGRES_PASSWORD: dispatch
+      POSTGRES_DB: dispatch_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/containers/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dispatch -d dispatch_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  oidc:
+    # Section 23.1 requires OIDC Authorization Code with PKCE and a local
+    # provider in Compose. Dex is configured entirely from a file, so the
+    # development identity provider has no hidden state.
+    image: ghcr.io/dexidp/dex:v2.44.0
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    ports:
+      - "5556:5556"
+    volumes:
+      - ./infra/oidc/dex.yaml:/etc/dex/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:5556/dex/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  central:
+    build:
+      context: .
+      dockerfile: infra/containers/central.Dockerfile
+      target: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      oidc:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://dispatch:dispatch@postgres:5432/dispatch_dev
+      PUBLIC_BASE_URL: http://localhost:4000
+      PORT: "4000"
+      OIDC_ISSUER: http://oidc:5556/dex
+      OIDC_CLIENT_ID_API: dispatch-api
+      OIDC_AUDIENCE: dispatch-api
+      # Section 31: development selects the deterministic unconfigured adapters,
+      # so a clean checkout starts with no telecom or geospatial credential.
+      COMMS_MESSAGING_ADAPTER: Dispatch.Integrations.Comms.Unconfigured.Messaging
+      COMMS_VOICE_ADAPTER: Dispatch.Integrations.Comms.Unconfigured.Voice
+      COMMS_VOICE_MEDIA_ADAPTER: Dispatch.Integrations.Comms.Unconfigured.VoiceMedia
+      GEO_GEOCODER_ADAPTER: Dispatch.Integrations.Geo.Unconfigured.Geocoder
+      GEO_ROUTER_ADAPTER: Dispatch.Integrations.Geo.Unconfigured.Router
+      MAP_PRESENTATION_PROVIDER: google
+      AGENT_RUNTIME_ADAPTER: Dispatch.Integrations.Agent.Fake.Runtime
+      AGENT_STREAMING_RUNTIME_ADAPTER: Dispatch.Integrations.Agent.Fake.StreamingRuntime
+      FACE_1_TO_1_ENABLED: "false"
+      FACE_VERIFIER_ADAPTER: Dispatch.Identity.Face.DisabledVerifier
+      FACE_CHALLENGE_TTL_SECONDS: "120"
+      BREAKGLASS_ENABLED: "false"
+      BREAKGLASS_MAX_TTL_SECONDS: "1800"
+      BREAKGLASS_NONPROD_SINGLE_USER_MODE: "true"
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./central:/app
+      - central-build:/app/_build
+      - central-deps:/app/deps
+    healthcheck:
+      # Section 32: readiness asserts the database and migration state and makes
+      # no outbound paid-provider call.
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+volumes:
+  postgres-data:
+  central-build:
+  central-deps:
