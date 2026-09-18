@@ -2,6 +2,52 @@
   "components": {
     "responses": {},
     "schemas": {
+      "CurrentStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "occurred_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "role_key": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "PARTICIPANT"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "enum": [
+              "AVAILABLE",
+              "OFF_DUTY",
+              "PRE_TRIP",
+              "DEADHEAD",
+              "EN_ROUTE_PICKUP",
+              "AT_PICKUP",
+              "LOADING",
+              "EN_ROUTE_DELIVERY",
+              "AT_DELIVERY",
+              "UNLOADING",
+              "DELAYED",
+              "BREAKDOWN",
+              "RESTING",
+              "COMPLETE",
+              "EMERGENCY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "source",
+          "role_key",
+          "occurred_at"
+        ],
+        "title": "CurrentStatus",
+        "type": "object"
+      },
       "DependenciesResponse": {
         "additionalProperties": false,
         "properties": {
@@ -159,6 +205,195 @@
         ],
         "title": "ReadinessResponse",
         "type": "object"
+      },
+      "StatusEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "device_sequence": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "location_sample_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "participant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recorded_at": {
+            "description": "When the server stored it; distinct from occurred_at for offline events.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "role_assignment_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "source": {
+            "description": "Section 5.2: a status is a declaration, so this is always PARTICIPANT.",
+            "enum": [
+              "PARTICIPANT"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "AVAILABLE",
+              "OFF_DUTY",
+              "PRE_TRIP",
+              "DEADHEAD",
+              "EN_ROUTE_PICKUP",
+              "AT_PICKUP",
+              "LOADING",
+              "EN_ROUTE_DELIVERY",
+              "AT_DELIVERY",
+              "UNLOADING",
+              "DELAYED",
+              "BREAKDOWN",
+              "RESTING",
+              "COMPLETE",
+              "EMERGENCY"
+            ],
+            "type": "string"
+          },
+          "supersedes_event_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "verification": {
+            "enum": [
+              "NONE",
+              "DEVICE_AUTHENTICATED",
+              "SYSTEM_BIOMETRIC",
+              "FACE_1_TO_1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "participant_id",
+          "role_assignment_id",
+          "status",
+          "source",
+          "occurred_at",
+          "recorded_at",
+          "verification"
+        ],
+        "title": "StatusEvent",
+        "type": "object"
+      },
+      "StatusEventRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "device_sequence": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "device_signature": {
+            "type": "string"
+          },
+          "event_id": {
+            "description": "Client-assigned UUIDv7. Becomes the stored event's ID, so an offline client can reconcile by the identifier it recorded before uploading. Omitted, the server assigns one. Already in use: 409 EVENT_ID_CONFLICT.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "location_sample_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "note": {
+            "description": "Required and nonblank for DELAYED and BREAKDOWN.",
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "occurred_at": {
+            "description": "RFC 3339 UTC. May not exceed server time by more than five minutes.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "AVAILABLE",
+              "OFF_DUTY",
+              "PRE_TRIP",
+              "DEADHEAD",
+              "EN_ROUTE_PICKUP",
+              "AT_PICKUP",
+              "LOADING",
+              "EN_ROUTE_DELIVERY",
+              "AT_DELIVERY",
+              "UNLOADING",
+              "DELAYED",
+              "BREAKDOWN",
+              "RESTING",
+              "COMPLETE",
+              "EMERGENCY"
+            ],
+            "type": "string"
+          },
+          "supersedes_event_id": {
+            "description": "The event this corrects. History is appended, never rewritten.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "occurred_at"
+        ],
+        "title": "StatusEventRequest",
+        "type": "object"
+      },
+      "StatusEventResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "current_status": {
+            "$ref": "#/components/schemas/CurrentStatus"
+          },
+          "event": {
+            "$ref": "#/components/schemas/StatusEvent"
+          }
+        },
+        "required": [
+          "event",
+          "current_status"
+        ],
+        "title": "StatusEventResponse",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -270,6 +505,224 @@
         "summary": "Readiness",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/v1/driver/status-events": {
+      "post": {
+        "callbacks": {},
+        "description": "Section 24.1's DRIVER compatibility route. Identical behaviour to /v1/me.",
+        "operationId": "DispatchWeb.StatusEventController.create_driver",
+        "parameters": [
+          {
+            "description": "Replaying a mutation with the same key returns the stored response.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Selects which held role assignment the request acts under. It selects authority context; it never grants it.",
+            "in": "header",
+            "name": "x-role-assignment-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusEventRequest"
+              }
+            }
+          },
+          "description": "Declaration",
+          "required": false
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEventResponse"
+                }
+              }
+            },
+            "description": "Stored declaration"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not permitted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Conflicting reuse"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Declare a driver status (compatibility projection)",
+        "tags": [
+          "status"
+        ]
+      }
+    },
+    "/v1/me/status-events": {
+      "post": {
+        "callbacks": {},
+        "description": "Records a self-declared status for the authenticated participant. The\nparticipant is derived from the token and the active role assignment; it is\nnot a parameter.\n",
+        "operationId": "DispatchWeb.StatusEventController.create",
+        "parameters": [
+          {
+            "description": "Replaying a mutation with the same key returns the stored response.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Selects which held role assignment the request acts under. It selects authority context; it never grants it.",
+            "in": "header",
+            "name": "x-role-assignment-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusEventRequest"
+              }
+            }
+          },
+          "description": "Declaration",
+          "required": false
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusEventResponse"
+                }
+              }
+            },
+            "description": "Stored declaration"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not permitted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Conflicting reuse"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Declare a participant status",
+        "tags": [
+          "status"
         ]
       }
     }

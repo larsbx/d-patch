@@ -74,7 +74,10 @@ new `RoleDefinition` and policy tests — not a new table, controller, or
 
 **Authorization lives in Ash policies.** Not in controller conditionals, not in
 hidden buttons. Every externally initiated action receives an explicit actor and
-tenant.
+tenant. A load- or stop-scoped grant needs two independent things — an active
+role assignment *and* an active party relationship — because they expire
+separately, and a contract that ended should end access even while the role
+remains.
 
 **No priority tier anywhere.** Calls, messages, ELD notices, location
 exceptions, and approval requests share one class, processed in receipt order.
@@ -98,7 +101,7 @@ documented as approved.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | not started |
+| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads, parties, status declarations, the audit chain, the `/v1` status-ingestion surface, and the role-scoped portal pages done**; Datastar streams and the Android UI remain |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -107,14 +110,54 @@ documented as approved.
 | 7 | Biometric identity assurance | not started |
 | 8 | Break-glass, hardening, pilot | not started |
 
-Slice 0 delivers the skeleton and the contracts, not the domain. `central/lib/dispatch/`
-has a directory per domain and no resources in them yet; that is Slice 1's work.
+Slice 0 delivered the skeleton and the contracts. Slice 1 is being built in
+parts. In place: organizations, users, participants, devices, the versioned
+role definitions and assignments, the capability registry and six seeded role
+profiles; loads, stops, assignments, and the load- and stop-party relationships
+that §22.2 requires *in addition to* a role assignment; and participant status
+declarations behind Ash policies, with a hash-chained audit stream.
+
+The machine API is now reachable: OIDC bearer tokens are verified against the
+issuer's published keys, §24.6's `X-Role-Assignment-ID` selects the single role
+assignment a request acts under, and `POST /v1/me/status-events` — with the
+`DRIVER` compatibility projection at `POST /v1/driver/status-events` — records a
+declaration behind the same Ash policies, honouring `Idempotency-Key` and
+device-sequence deduplication. Errors are RFC 9457 problems with stable reason
+codes.
+
+The portal is role-scoped and server-rendered. A browser session holds the
+authenticated subject and the selected role assignment, both revalidated on
+every request (§24.6), and §4.3's switcher is how a user holding several
+assignments says which one they are acting under. Two surfaces are live:
+`/partner/stops/:id` for shippers and receivers, and
+`/operations/participants/:id` with its `DRIVER` compatibility projection.
+
+The field-authorization boundary is a view model rather than a filter. §4.3's
+prohibition list — no driver timeline, route trace, unrelated stops, negotiated
+rate or carrier notes on a partner page — holds because those structs have
+nowhere to put them, so a leak is a compile error rather than a policy nobody
+revisits. An unrelated subject returns the same 404 as one that does not exist
+(acceptance criterion 19), and every fact carries its source and freshness
+(§26.3's `fact_badge`), because §1's four kinds of information are only distinct
+if the page says which it is showing.
+
+The participant stream of §24.5 is live at
+`GET /ui/participants/:id/stream`. Its authorization is per *tick* rather than
+per connection: a page authorizes once and is gone, while a stream keeps
+answering for hours, so every heartbeat revalidates the assignment behind it.
+That is what makes acceptance criterion 16 — a dispatcher losing the stream
+*immediately* when the relationship ends — true of an idle socket and not only
+of one that happens to receive an event.
+
+The operations roster stream and the Android offline status UI (§25.2) are the
+remainder.
 
 ## Contributing
 
 - Section 19 makes **MUST**, **MUST NOT**, **SHOULD**, and **MAY** normative.
   Replacing a MUST requires an ADR and approval — see `docs/adr/0000-template.md`.
-- A pull request cannot merge with a failing CI gate (§33.5).
+- A pull request cannot merge with a failing CI gate (§33.5). `scripts/verify.sh`
+  runs the gates that need no database or browser; `--all` adds the rest.
 - `contracts/openapi.json` is generated. Run `mix openapi.generate` in
   `central/` and commit the result; `openapi-diff` fails on drift.
 - Section 35's definition of done applies per slice, not per pull request.

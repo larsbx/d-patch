@@ -29,11 +29,28 @@ config :dispatch, :agent,
 config :dispatch, :identity,
   face_verifier: Dispatch.Identity.Face.DisabledVerifier,
   face_1_to_1_enabled: false,
-  face_challenge_ttl_seconds: 120
+  face_challenge_ttl_seconds: 120,
+  # Compiled from test/support only. Section 31's startup validation refuses
+  # anything in that namespace in production, so this shortcut cannot escape.
+  token_verifier: Dispatch.Support.Tokens.StaticVerifier
 
 config :dispatch, :breakglass,
   max_ttl_seconds: 1_800,
   nonprod_single_user_mode: true
+
+# Section 23.2: only these compiled modules may be named by a role definition.
+config :dispatch, :role_profile_module_allowlist, [
+  # Test-only, compiled from test/support. Section 22.2 lets profiles other than
+  # DRIVER declare a different assignment cardinality; without a second profile
+  # that branch cannot be exercised at all.
+  Dispatch.Support.Roles.Courier,
+  Dispatch.Access.Roles.Driver,
+  Dispatch.Access.Roles.Admin,
+  Dispatch.Access.Roles.Dispatcher,
+  Dispatch.Access.Roles.Shipper,
+  Dispatch.Access.Roles.Receiver,
+  Dispatch.Access.Roles.Broker
+]
 
 config :dispatch, :diagnostics_token, String.duplicate("test-diagnostics-token", 2)
 
@@ -41,3 +58,7 @@ config :dispatch, Oban, testing: :manual
 
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
+
+# Tests drive the publisher synchronously from the sandbox-owning process.
+# The production default remains supervised polling.
+config :dispatch, :start_outbox_publisher, false

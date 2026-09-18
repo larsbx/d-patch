@@ -20,7 +20,11 @@ config :dispatch,
 # timestamptz in PostgreSQL.
 config :dispatch, Dispatch.Repo,
   migration_primary_key: [name: :id, type: :uuid],
-  migration_timestamps: [type: :utc_datetime_usec]
+  migration_timestamps: [type: :utc_datetime_usec],
+  # Section 28.2: PostGIS is canonical, and `geography` columns need the Geo
+  # extension registered with Postgrex or every position write fails at the
+  # driver.
+  types: Dispatch.PostgresTypes
 
 config :dispatch, DispatchWeb.Endpoint,
   url: [host: "localhost"],
@@ -32,6 +36,19 @@ config :dispatch, DispatchWeb.Endpoint,
 config :logger, :default_formatter,
   format: {Dispatch.LogFormatter, :format},
   metadata: [:request_id, :correlation_id, :tenant_id]
+
+# Section 24.1 bounds a status note at 1,000 Unicode code points, so lengths are
+# counted in code points everywhere. Graphemes would leave `max_length`
+# unbounded in bytes, since one grapheme can carry unlimited combining marks.
+config :ash, default_string_length_count: :codepoints
+
+# How long an outbound connection may take to establish. Named here because two
+# places must agree on it: the Finch pool that enforces it, and
+# `Dispatch.Identity.Tokens.Oidc`, whose refresh budget is computed from it. A
+# connect timeout left to a library default is unbounded in practice, and any
+# deadline sized against the other two timeouts alone would be wrong by however
+# long a connection took.
+config :dispatch, :http_connect_timeout_ms, 3_000
 
 config :phoenix, :json_library, Jason
 
