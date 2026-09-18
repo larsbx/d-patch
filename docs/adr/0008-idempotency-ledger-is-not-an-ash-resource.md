@@ -47,15 +47,15 @@ Two consequences of that choice are load-bearing:
   request treated as fresh, whether or not a sweep has run. Section 24's
   twenty-four hours is a bound; a bound that holds only while a job is running
   is not one.
-- **An in-progress claim carries a lease.** A claim and the mutation it guards
-  are two operations, and a process can die between them: the mutation commits,
-  the response is never recorded, and the key is left `IN_PROGRESS`. Without a
-  lease that key is refused for the full retention window, and the client's only
-  way forward — a fresh key — duplicates the mutation, which is precisely what
-  the ledger exists to prevent. A claim older than the lease may therefore be
-  taken over, conditionally, so two retries arriving together cannot both take
-  it. The lease is far longer than any request this service should take, so a
-  slow but living request never loses its claim.
+- **The claim, the mutation and the stored response commit together.**
+  `execute/4` runs all three in one transaction. Written separately they have a
+  window: a process dying between the mutation and the record leaves a key
+  claimed with nothing behind it, and no later reader can tell whether the work
+  happened. A lease on such a claim only picks which way to be wrong — refuse
+  the retry and the key is dead until it expires, or admit it and the mutation
+  runs twice. In one transaction the question does not arise. A concurrent copy
+  blocks on the uncommitted claim rather than racing past it, bounded by
+  `lock_timeout` so one slow request cannot pile up every retry behind it.
 
 Only a stored *response* is replayable. A rejected or failed mutation abandons
 its claim, freeing the key, because storing a failure would make a transient
@@ -88,7 +88,13 @@ replay.
 | Look up, then insert after the mutation | Loses the race that retries make routine, and executes the mutation twice |
 | Rely on the retention sweep for expiry | A paused or unshipped job would leave day-old responses replaying indefinitely |
 | Leave in-progress claims until they expire | A crash between the mutation and the record strands the key for a day, and the client's only recourse duplicates the mutation |
-| Wrap the mutation and the ledger write in one transaction | Would work for a single-database mutation, but not once a mutation has any effect outside this database; the lease covers both and needs no distributed transaction |
+| A lease that lets a retry take over a stale claim | Reuses the claim row but not the mutation's idempotence: the retry re-runs the work, which for a declaration carrying no `event_id` and no device sequence creates a second event — the duplicate the ledger exists to prevent |
+
+A mutation with effects outside this database cannot be covered by this
+transaction, and none of Section 24's mutations has any today. When one does —
+Section 27's outbound messaging is the obvious candidate — the effect belongs
+behind the outbox of Section 22.5, whose row is written in this same
+transaction, rather than performed inline where no transaction can reach it.
 | Store failed responses too | Makes a transient client error permanent for twenty-four hours |
 
 ## Verification
