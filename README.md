@@ -74,7 +74,10 @@ new `RoleDefinition` and policy tests — not a new table, controller, or
 
 **Authorization lives in Ash policies.** Not in controller conditionals, not in
 hidden buttons. Every externally initiated action receives an explicit actor and
-tenant.
+tenant. A load- or stop-scoped grant needs two independent things — an active
+role assignment *and* an active party relationship — because they expire
+separately, and a contract that ended should end access even while the role
+remains.
 
 **No priority tier anywhere.** Calls, messages, ELD notices, location
 exceptions, and approval requests share one class, processed in receipt order.
@@ -98,7 +101,7 @@ documented as approved.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **identity and access core done**; status ingestion, portal surfaces, and the Android UI remain |
+| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads and party relationships done**; status ingestion, portal surfaces, and the Android UI remain |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -108,11 +111,13 @@ documented as approved.
 | 8 | Break-glass, hardening, pilot | not started |
 
 Slice 0 delivered the skeleton and the contracts. Slice 1 is being built in
-parts; the identity and access core is in place — organizations, users,
-participants, devices, the versioned role definitions and assignments, the
-capability registry, the six seeded role profiles, and their allow and deny
-tests. Status ingestion, the Phoenix role surfaces, Datastar streams, and the
-Android offline status UI are the remainder.
+parts. In place: organizations, users, participants, devices, the versioned
+role definitions and assignments, the capability registry and six seeded role
+profiles; then loads, stops, assignments, and the load- and stop-party
+relationships that §22.2 requires *in addition to* a role assignment before any
+load- or stop-scoped access is granted. Status ingestion, the Phoenix role
+surfaces, Datastar streams, and the Android offline status UI are the
+remainder.
 
 ## Contributing
 
