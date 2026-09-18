@@ -100,8 +100,10 @@ migration-check: ## Gate: migration-check
 	$(MIX) ash_postgres.generate_migrations --check
 
 secret-scan: ## Gate: secret-scan
+	# Git mode, matching CI. A working-tree scan would report build artifacts
+	# that are gitignored and never committed, which is noise rather than a leak.
 	docker run --rm -v "$(PWD):/repo" zricethezav/gitleaks:latest detect \
-	  --source=/repo --no-git --redact --config=/repo/.gitleaks.toml
+	  --source=/repo --redact --config=/repo/.gitleaks.toml
 
 build: ## Gate: container-build
 	docker build -f infra/containers/central.Dockerfile --target runtime -t dispatch-central:local .

@@ -5,17 +5,20 @@ title = "dispatch-platform"
 [extend]
 useDefault = true
 
-[[allowlist]]
-description = """
-Development-only credentials that are published deliberately. The local OIDC
-provider (Section 23.1) ships static passwords so `make up` works on a clean
-checkout; treating them as findings would train reviewers to ignore this gate.
-"""
+# Development-only credentials that are published deliberately. The local OIDC
+# provider (Section 23.1) ships static passwords so `make up` works on a clean
+# checkout, and .env.example lists names with safe defaults (Section 31).
+# Treating either as a finding would train reviewers to ignore this gate.
+[[allowlists]]
+description = "Published development credentials"
+targets = ["path"]
 paths = [
   '''infra/oidc/dex\.yaml''',
   '''\.env\.example''',
 ]
 
-[[allowlist]]
-description = "Vendored third-party bundle (Section 26.1), reviewed by hash in VENDOR.md."
+# Reviewed by hash in central/priv/static/vendor/VENDOR.md, not by scanning.
+[[allowlists]]
+description = "Vendored third-party bundle (Section 26.1)"
+targets = ["path"]
 paths = ['''central/priv/static/vendor/.*\.js''']
