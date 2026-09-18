@@ -14,6 +14,13 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Without this, every gate below "fails" for the same reason and the output
+# blames eight checks for one missing tool.
+if ! command -v mix >/dev/null 2>&1; then
+  echo "mix is not on PATH. Install Elixir ${ELIXIR_VERSION:-1.19.6} / OTP 28.3.3 (see docs/adr/0002)." >&2
+  exit 127
+fi
+
 integration=0
 [ "${1:-}" = "--all" ] && integration=1
 
