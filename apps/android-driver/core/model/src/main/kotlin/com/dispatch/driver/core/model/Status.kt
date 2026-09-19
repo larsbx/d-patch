@@ -29,13 +29,7 @@ enum class DriverStatus(
     ),
 }
 
-enum class LocalSyncState {
-    PENDING,
-    RETRY,
-    SENDING,
-    SENT,
-    REJECTED,
-}
+enum class LocalSyncState { PENDING, RETRY, SENDING, SENT, REJECTED }
 
 data class LocalStatus(
     val localId: String,
@@ -47,6 +41,12 @@ data class LocalStatus(
     val correctiveAction: String? = null,
 )
 
+data class StatusRejection(
+    val localId: String,
+    val code: String,
+    val correctiveAction: String,
+)
+
 sealed interface StatusSubmissionResult {
     data class Queued(val localId: String) : StatusSubmissionResult
     data class Blocked(val reason: String) : StatusSubmissionResult
@@ -54,6 +54,7 @@ sealed interface StatusSubmissionResult {
 
 interface StatusRepository {
     val currentStatus: Flow<LocalStatus?>
+    val latestRejection: Flow<StatusRejection?>
 
     suspend fun declare(status: DriverStatus, note: String?): StatusSubmissionResult
 
