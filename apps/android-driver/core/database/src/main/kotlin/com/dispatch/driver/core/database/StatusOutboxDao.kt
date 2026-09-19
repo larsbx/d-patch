@@ -17,12 +17,11 @@ interface StatusOutboxDao {
     @Query(
         """
         SELECT * FROM pending_events
-        WHERE state = 'REJECTED'
-        ORDER BY device_sequence DESC, created_at DESC
+        ORDER BY created_at DESC, device_sequence DESC
         LIMIT 1
         """,
     )
-    fun observeLatestRejected(): Flow<PendingEventEntity?>
+    fun observeLatestEvent(): Flow<PendingEventEntity?>
 
     @Query(
         """
