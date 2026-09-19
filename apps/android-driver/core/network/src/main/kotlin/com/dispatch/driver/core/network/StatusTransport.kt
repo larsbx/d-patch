@@ -4,23 +4,19 @@ import com.dispatch.driver.core.network.generated.ProblemDetail
 import com.dispatch.driver.core.network.generated.StatusApi
 import com.dispatch.driver.core.network.generated.StatusEventRequest
 import com.dispatch.driver.core.network.generated.StatusEventResponse
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.io.IOException
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 
 sealed interface StatusUploadOutcome {
     data class Accepted(val response: StatusEventResponse) : StatusUploadOutcome
-
     data class Rejected(val problem: ProblemDetail) : StatusUploadOutcome
-
-    data class Retryable(
-        val code: String,
-        val detail: String,
-    ) : StatusUploadOutcome
+    data class Retryable(val code: String, val detail: String) : StatusUploadOutcome
 }
 
 interface StatusTransport {
@@ -52,15 +48,11 @@ class RetrofitStatusTransport(
                 )
 
             if (response.code() == 201) {
-                val body = response.body()
-                if (body == null) {
-                    StatusUploadOutcome.Retryable(
+                response.body()?.let(StatusUploadOutcome::Accepted)
+                    ?: StatusUploadOutcome.Retryable(
                         code = "EMPTY_RESPONSE",
                         detail = "The server accepted the request without a usable response body.",
                     )
-                } else {
-                    StatusUploadOutcome.Accepted(body)
-                }
             } else {
                 classifyFailure(response.code(), response.errorBody()?.string())
             }
@@ -78,9 +70,7 @@ class RetrofitStatusTransport(
 
     private fun classifyFailure(httpStatus: Int, rawBody: String?): StatusUploadOutcome {
         val problem =
-            rawBody?.let {
-                runCatching { json.decodeFromString<ProblemDetail>(it) }.getOrNull()
-            }
+            rawBody?.let { runCatching { json.decodeFromString<ProblemDetail>(it) }.getOrNull() }
 
         if (httpStatus == 409 && problem?.code == "IDEMPOTENCY_KEY_IN_PROGRESS") {
             return StatusUploadOutcome.Retryable(problem.code, problem.detail)
@@ -93,11 +83,9 @@ class RetrofitStatusTransport(
             )
         }
 
-        return if (problem != null) {
-            StatusUploadOutcome.Rejected(problem)
-        } else {
-            StatusUploadOutcome.Rejected(
-                ProblemDetail(
+        return StatusUploadOutcome.Rejected(
+            problem
+                ?: ProblemDetail(
                     type = "about:blank",
                     title = "Request rejected",
                     status = httpStatus,
@@ -106,16 +94,11 @@ class RetrofitStatusTransport(
                     code = "HTTP_$httpStatus",
                     correlationId = "unavailable",
                 ),
-            )
-        }
+        )
     }
 }
 
-fun createStatusApi(
-    baseUrl: String,
-    client: OkHttpClient,
-    json: Json,
-): StatusApi =
+fun createStatusApi(baseUrl: String, client: OkHttpClient, json: Json): StatusApi =
     Retrofit.Builder()
         .baseUrl(baseUrl)
         .client(client)
