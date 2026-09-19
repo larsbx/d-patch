@@ -57,11 +57,13 @@ class OfflineStatusRepository @Inject constructor(
 
     override val latestRejection: Flow<StatusRejection?> =
         dao.observeLatestRejected().map { event ->
-            if (event?.lastErrorCode != null && event.lastErrorDetail != null) {
+            val code = event?.lastErrorCode
+            val detail = event?.lastErrorDetail
+            if (event != null && code != null && detail != null) {
                 StatusRejection(
                     localId = event.localId,
-                    code = event.lastErrorCode,
-                    correctiveAction = event.lastErrorDetail,
+                    code = code,
+                    correctiveAction = detail,
                 )
             } else {
                 null
