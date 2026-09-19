@@ -1,3 +1,15 @@
+fun buildConfigString(value: String): String =
+    """ + value.replace("\\", "\\\\").replace(""", "\\"") + """
+
+val configuredApiBaseUrl = providers.gradleProperty("dispatchApiBaseUrl")
+    .orElse(providers.environmentVariable("DISPATCH_API_BASE_URL"))
+val debugBearerToken = providers.gradleProperty("dispatchDevBearerToken")
+    .orElse(providers.environmentVariable("DISPATCH_DEV_BEARER_TOKEN"))
+val debugRoleAssignmentId = providers.gradleProperty("dispatchDevRoleAssignmentId")
+    .orElse(providers.environmentVariable("DISPATCH_DEV_ROLE_ASSIGNMENT_ID"))
+val debugCapabilities = providers.gradleProperty("dispatchDevCapabilities")
+    .orElse(providers.environmentVariable("DISPATCH_DEV_CAPABILITIES"))
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -15,9 +27,44 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
-        release { isMinifyEnabled = true; isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") }
-        debug { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                buildConfigString(configuredApiBaseUrl.orElse("").get()),
+            )
+            buildConfigField("String", "DEV_BEARER_TOKEN", """")
+            buildConfigField("String", "DEV_ROLE_ASSIGNMENT_ID", """")
+            buildConfigField("String", "DEV_CAPABILITIES", """")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        debug {
+            isMinifyEnabled = false
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                buildConfigString(
+                    configuredApiBaseUrl.orElse("http://10.0.2.2:4000/").get(),
+                ),
+            )
+            buildConfigField(
+                "String",
+                "DEV_BEARER_TOKEN",
+                buildConfigString(debugBearerToken.orElse("").get()),
+            )
+            buildConfigField(
+                "String",
+                "DEV_ROLE_ASSIGNMENT_ID",
+                buildConfigString(debugRoleAssignmentId.orElse("").get()),
+            )
+            buildConfigField(
+                "String",
+                "DEV_CAPABILITIES",
+                buildConfigString(debugCapabilities.orElse("").get()),
+            )
+        }
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

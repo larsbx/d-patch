@@ -17,4 +17,16 @@ class StatusTest {
     @Test fun delayRequiresNote() {
         assertNotNull(StatusDraft(ParticipantStatus.DELAYED, " ", null).validationError())
     }
+
+    @Test fun uuidV7CarriesVersionVariantAndUnixMillis() {
+        val millis = 1_700_000_000_123L
+        val id = UuidV7.generate(millis)
+
+        assertEquals(7, id.version())
+        assertEquals(2, id.variant())
+        assertEquals(
+            millis,
+            (id.mostSignificantBits ushr 16) and 0x0000_FFFF_FFFF_FFFFL,
+        )
+    }
 }

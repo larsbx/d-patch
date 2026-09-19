@@ -42,6 +42,8 @@ data class CachedAssignmentEntity(@PrimaryKey val id: String, val json: String,
     fun observeEvents(): Flow<List<LocalStatusEntity>>
     @Query("SELECT * FROM pending_events WHERE state = 'PENDING' AND next_attempt_at <= :now ORDER BY device_sequence LIMIT :limit")
     suspend fun ready(now: Long, limit: Int = 25): List<PendingEventEntity>
+    @Query("UPDATE pending_events SET state = 'PENDING' WHERE state = 'SENDING'")
+    suspend fun reclaimInterruptedClaims(): Int
     @Query("SELECT role_assignment_id FROM local_status_events WHERE local_id = :id")
     suspend fun roleAssignmentId(id: String): String?
     @Query("SELECT lastSequence FROM device_sequences WHERE deviceId = :deviceId")
