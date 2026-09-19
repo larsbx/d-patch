@@ -262,9 +262,12 @@ class StatusSyncWorker(context: Context, params: WorkerParameters) : CoroutineWo
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .build()
 
+            // APPEND_OR_REPLACE closes the final-drain race: if a declaration is queued
+            // after the running worker's last empty read but before it completes, that
+            // enqueue still leaves a successor in the unique work chain.
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "status-outbox-sync",
-                ExistingWorkPolicy.KEEP,
+                ExistingWorkPolicy.APPEND_OR_REPLACE,
                 request,
             )
         }
