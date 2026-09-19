@@ -1,5 +1,5 @@
 fun buildConfigString(value: String): String =
-    """ + value.replace("\\", "\\\\").replace(""", "\\"") + """
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 val configuredApiBaseUrl = providers.gradleProperty("dispatchApiBaseUrl")
     .orElse(providers.environmentVariable("DISPATCH_API_BASE_URL"))
@@ -35,9 +35,9 @@ android {
                 "API_BASE_URL",
                 buildConfigString(configuredApiBaseUrl.orElse("").get()),
             )
-            buildConfigField("String", "DEV_BEARER_TOKEN", """")
-            buildConfigField("String", "DEV_ROLE_ASSIGNMENT_ID", """")
-            buildConfigField("String", "DEV_CAPABILITIES", """")
+            buildConfigField("String", "DEV_BEARER_TOKEN", "\"\"")
+            buildConfigField("String", "DEV_ROLE_ASSIGNMENT_ID", "\"\"")
+            buildConfigField("String", "DEV_CAPABILITIES", "\"\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
