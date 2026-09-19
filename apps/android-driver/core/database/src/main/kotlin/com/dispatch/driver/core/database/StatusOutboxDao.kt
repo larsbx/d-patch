@@ -11,6 +11,19 @@ interface StatusOutboxDao {
     @Query("SELECT * FROM cached_driver_state WHERE singleton_id = 1")
     fun observeDriverState(): Flow<CachedDriverStateEntity?>
 
+    @Query("SELECT * FROM cached_driver_state WHERE singleton_id = 1")
+    suspend fun getDriverState(): CachedDriverStateEntity?
+
+    @Query(
+        """
+        SELECT * FROM pending_events
+        WHERE state = 'REJECTED'
+        ORDER BY device_sequence DESC, created_at DESC
+        LIMIT 1
+        """,
+    )
+    fun observeLatestRejected(): Flow<PendingEventEntity?>
+
     @Query(
         """
         SELECT COALESCE(MAX(device_sequence), 0) + 1
@@ -76,12 +89,7 @@ interface StatusOutboxDao {
         WHERE local_id = :localId
         """,
     )
-    suspend fun markRetry(
-        localId: String,
-        nextAttemptAt: Long,
-        code: String,
-        detail: String,
-    )
+    suspend fun markRetry(localId: String, nextAttemptAt: Long, code: String, detail: String)
 
     @Query(
         """
@@ -93,12 +101,7 @@ interface StatusOutboxDao {
         WHERE local_id = :localId
         """,
     )
-    suspend fun markRejected(
-        localId: String,
-        at: Long,
-        code: String,
-        detail: String,
-    )
+    suspend fun markRejected(localId: String, at: Long, code: String, detail: String)
 
     @Query(
         """
