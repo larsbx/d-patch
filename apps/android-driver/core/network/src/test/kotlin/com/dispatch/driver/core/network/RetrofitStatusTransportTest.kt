@@ -55,7 +55,7 @@ class RetrofitStatusTransportTest {
                       "current_status": {
                         "value": "AT_PICKUP",
                         "source": "PARTICIPANT",
-                        "role_key": "DRIVER",
+                        "role_key": "FIELD_PROFILE",
                         "occurred_at": "2026-09-19T10:00:00.000Z"
                       }
                     }
