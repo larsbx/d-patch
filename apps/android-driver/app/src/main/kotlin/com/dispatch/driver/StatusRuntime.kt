@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import retrofit2.Retrofit
-import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import okhttp3.MediaType.Companion.toMediaType
 
 interface SessionProvider {
