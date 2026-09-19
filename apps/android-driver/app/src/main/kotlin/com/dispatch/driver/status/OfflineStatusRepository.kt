@@ -56,10 +56,15 @@ class OfflineStatusRepository @Inject constructor(
         dao.observeDriverState().map { it?.json?.let(::decodeLocalStatus) }
 
     override val latestRejection: Flow<StatusRejection?> =
-        dao.observeLatestRejected().map { event ->
+        dao.observeLatestEvent().map { event ->
             val code = event?.lastErrorCode
             val detail = event?.lastErrorDetail
-            if (event != null && code != null && detail != null) {
+            if (
+                event != null &&
+                    event.state == PendingEventStates.REJECTED &&
+                    code != null &&
+                    detail != null
+            ) {
                 StatusRejection(
                     localId = event.localId,
                     code = code,
