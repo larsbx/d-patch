@@ -57,33 +57,36 @@ class StatusSyncEngine @Inject constructor(
             }
 
             val request =
-                runCatching { json.decodeFromString<StatusEventRequest>(event.canonicalJson) }
-                    .getOrElse {
-                        database.withTransaction {
-                            dao.markRejected(
-                                event.localId,
-                                now,
-                                "LOCAL_EVENT_INVALID",
+                try {
+                    json.decodeFromString<StatusEventRequest>(event.canonicalJson)
+                } catch (_: Exception) {
+                    null
+                }
+
+            if (request == null) {
+                database.withTransaction {
+                    dao.markRejected(
+                        event.localId,
+                        now,
+                        "LOCAL_EVENT_INVALID",
+                        "This local declaration is unreadable. Submit a corrected status.",
+                    )
+                    repository.updateCachedIfCurrent(event.localId) {
+                        it.copy(
+                            syncState = LocalSyncState.REJECTED.name,
+                            rejectionCode = "LOCAL_EVENT_INVALID",
+                            correctiveAction =
                                 "This local declaration is unreadable. Submit a corrected status.",
-                            )
-                            repository.updateCachedIfCurrent(event.localId) {
-                                it.copy(
-                                    syncState = LocalSyncState.REJECTED.name,
-                                    rejectionCode = "LOCAL_EVENT_INVALID",
-                                    correctiveAction =
-                                        "This local declaration is unreadable. Submit a corrected status.",
-                                )
-                            }
-                        }
-                        continue
+                        )
                     }
+                }
+                continue
+            }
 
             when (
                 val outcome =
                     transport.submit(
                         accessToken = authority.accessToken,
-                        // The authority context is captured with the event. A later
-                        // role switch must not retarget an offline declaration.
                         roleAssignmentId = event.roleAssignmentId,
                         idempotencyKey = event.idempotencyKey,
                         request = request,
@@ -97,8 +100,6 @@ class StatusSyncEngine @Inject constructor(
                             serverVersion = outcome.response.event.id,
                         ) {
                             it.copy(
-                                // A late offline upload may not be the current server
-                                // status, so reconcile to current_status, not the input.
                                 status = outcome.response.currentStatus.value,
                                 occurredAt = outcome.response.currentStatus.occurredAt,
                                 source = outcome.response.currentStatus.source,
@@ -122,8 +123,6 @@ class StatusSyncEngine @Inject constructor(
                             it.copy(
                                 syncState = LocalSyncState.REJECTED.name,
                                 rejectionCode = outcome.problem.code,
-                                // Section 25.2 requires the server's exact corrective
-                                // detail rather than a client-side reinterpretation.
                                 correctiveAction = outcome.problem.detail,
                             )
                         }
