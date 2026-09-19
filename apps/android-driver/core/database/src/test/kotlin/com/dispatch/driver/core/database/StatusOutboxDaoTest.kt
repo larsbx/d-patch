@@ -42,9 +42,12 @@ class StatusOutboxDaoTest {
         val detail = "Select an active role assignment and submit again."
         dao.markRejected("one", at = 20, code = "ROLE_ASSIGNMENT_INVALID", detail = detail)
 
-        val rejected = dao.observeLatestRejected().first()
+        val rejected = dao.observeLatestEvent().first()
         assertEquals("ROLE_ASSIGNMENT_INVALID", rejected?.lastErrorCode)
         assertEquals(detail, rejected?.lastErrorDetail)
+
+        dao.insertPending(event(localId = "two", sequence = 2).copy(createdAt = 30))
+        assertEquals("two", dao.observeLatestEvent().first()?.localId)
     }
 
     private fun event(localId: String, sequence: Long) =
