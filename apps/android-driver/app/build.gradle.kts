@@ -1,3 +1,10 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
+}
+
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
@@ -10,12 +17,6 @@ val debugRoleAssignmentId = providers.gradleProperty("dispatchDevRoleAssignmentI
 val debugCapabilities = providers.gradleProperty("dispatchDevCapabilities")
     .orElse(providers.environmentVariable("DISPATCH_DEV_CAPABILITIES"))
 
-plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.kotlin.serialization)
-}
 android {
     namespace = "com.dispatch.driver"
     compileSdk = libs.versions.compileSdk.get().toInt()
