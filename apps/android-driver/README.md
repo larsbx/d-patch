@@ -21,8 +21,16 @@ Requires an Android SDK. Point at it with `local.properties`
 | --- | --- | --- |
 | Application ID | `app/build.gradle.kts` | `com.dispatch.driver` is a placeholder; see ADR-0003 |
 | `minSdk` | `gradle/libs.versions.toml` | 29, fixed by §19.1 |
-| API base URL | build configuration | No provider credential ships in the client (§3.1) |
+| API base URL | `DISPATCH_API_BASE_URL` or `-PdispatchApiBaseUrl=...` | Debug defaults to `http://10.0.2.2:4000/` for the emulator. Release startup requires an explicitly configured HTTPS URL. |
+| Debug session bootstrap | `DISPATCH_DEV_BEARER_TOKEN`, `DISPATCH_DEV_ROLE_ASSIGNMENT_ID`, `DISPATCH_DEV_CAPABILITIES` | Debug builds only. These values exercise the slice; they grant no server authority. Release builds compile these fields empty. |
 | Maps key | not provisioned | §28.3 restricts it by application ID and signing certificate, which ADR-0003 blocks until the ID is decided |
+
+Authenticated session state is stored through `core:auth` in
+Keystore-backed encrypted preferences. The debug bootstrap is only a local
+handoff until the OIDC/PKCE UI writes the same store. The queued status row
+captures the role-assignment ID at declaration time; switching the active role
+later does not rewrite the upload context. The central service revalidates
+token ownership, role-assignment validity, scope, and capability on mutation.
 
 ## Health checks
 
