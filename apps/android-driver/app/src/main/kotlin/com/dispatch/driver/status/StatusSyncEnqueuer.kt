@@ -29,7 +29,14 @@ class WorkManagerStatusSyncEnqueuer @Inject constructor(
                 .setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
                 .build()
-        workManager.enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+
+        // Appending prevents the narrow drain/complete race from discarding a
+        // declaration queued while the previous unique worker is still running.
+        workManager.enqueueUniqueWork(
+            UNIQUE_WORK_NAME,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            request,
+        )
     }
 
     private companion object {
