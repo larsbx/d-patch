@@ -32,6 +32,9 @@ e2e/playwright-report/
 *.pem
 *.key
 !central/priv/static/**
+# ADR-0009: published development capability-signing keys. Production rejects them.
+!infra/capability-signing/development.pem
+!infra/capability-signing/development.pub.pem
 
 # Editors and OS
 .DS_Store

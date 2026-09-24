@@ -5,6 +5,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -36,12 +37,12 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
-    implementation(projects.core.model)
+    // Both appear in `DispatchClient`'s public signatures.
+    api(projects.core.model)
     implementation(libs.retrofit)
-    implementation(libs.retrofit.kotlinx.serialization)
-    implementation(libs.okhttp)
+    api(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.bundles.unit.test)
-    testImplementation(libs.robolectric)
+    testImplementation(libs.okhttp.mockwebserver)
 }

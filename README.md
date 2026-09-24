@@ -101,7 +101,7 @@ documented as approved.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads, parties, status declarations, the audit chain, the `/v1` status-ingestion surface, and the role-scoped portal pages done**; Datastar streams and the Android UI remain |
+| 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status and capability surfaces, the role-scoped portal pages and streams, and the capability-driven Android offline status UI; Android sign-in (`core:auth`) and the exit-criterion end-to-end runs remain |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -149,8 +149,23 @@ That is what makes acceptance criterion 16 — a dispatcher losing the stream
 *immediately* when the relationship ends — true of an idle socket and not only
 of one that happens to receive an event.
 
-The operations roster stream and the Android offline status UI (§25.2) are the
-remainder.
+The operations roster stream (`GET /ui/operations/stream`) is live beside it.
+
+The field application enables features from a signed capability document
+(§23.2, ADR-0009). `GET /v1/role-capabilities` returns a JWS (ES256) bound to
+the caller, tenant, participant and selected assignment; it lists the role's
+features — each only if the assignment holds the capability it exercises — and
+§5.1's status vocabulary, so the app holds no second copy of it. The app pins
+the verification key at build time and enables nothing a document does not
+say, from nothing that does not verify.
+
+Status declarations go through §25.2's Room outbox: the device sequence is
+allocated and the pending row written in one transaction, the screen updates
+from that row, and `SyncWorker` (network required, charging not) sends due
+events oldest first under the assignment each was declared under. A rejection
+is final and shows its corrective action; anything else keeps the event
+queued. Android sign-in (`core:auth`, §23.1) is not built yet, so the app
+currently reports itself signed out and offers nothing.
 
 ## Contributing
 

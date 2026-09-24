@@ -8,6 +8,7 @@ defmodule Dispatch.Config do
   operator fix a misconfigured deployment in a single pass.
   """
 
+  alias Dispatch.Access.CapabilitySigner
   alias Dispatch.Integrations.AdapterRegistry
 
   @typedoc "A single configuration violation, identified by a stable reason code."
@@ -15,6 +16,11 @@ defmodule Dispatch.Config do
 
   @breakglass_ttl_bounds 60..3_600
   @face_challenge_ttl_bounds 30..120
+
+  # The key identifier of infra/capability-signing/development.pem. A constant
+  # because a production release does not ship that file; a test pins the two
+  # together so a regenerated development key cannot slip past this check.
+  @development_capability_kid "tOkF49ervDH_m_gl"
 
   @doc """
   Validates the running configuration and raises when it is unusable.
@@ -47,7 +53,8 @@ defmodule Dispatch.Config do
       validate_nonproduction_adapters(production?),
       validate_secrets(production?),
       validate_breakglass(production?),
-      validate_face(production?)
+      validate_face(production?),
+      validate_capability_signing(production?)
     ])
   end
 
@@ -147,6 +154,41 @@ defmodule Dispatch.Config do
       violation("SECRET_MISSING", name, "Required by the selected adapter but not set.")
     end)
   end
+
+  # ADR-0009. Outside production a missing key fails the one endpoint that needs
+  # it, which is the right size of failure for a developer. In production it is a
+  # startup failure, and so is the published development key: every checkout
+  # holds its private half, so a document it signed proves nothing.
+  defp validate_capability_signing(false), do: []
+
+  defp validate_capability_signing(true) do
+    case CapabilitySigner.key() do
+      {:ok, %{kid: @development_capability_kid}} ->
+        [
+          violation(
+            "CAPABILITY_SIGNING_KEY_IS_DEVELOPMENT_KEY",
+            "CAPABILITY_SIGNING_KEY",
+            "The published development key cannot sign production documents."
+          )
+        ]
+
+      {:ok, _key} ->
+        []
+
+      {:error, reason} ->
+        [
+          violation(
+            "CAPABILITY_SIGNING_KEY_UNUSABLE",
+            "CAPABILITY_SIGNING_KEY",
+            "A readable PKCS#8 P-256 key is required (#{reason})."
+          )
+        ]
+    end
+  end
+
+  @doc false
+  @spec development_capability_kid() :: String.t()
+  def development_capability_kid, do: @development_capability_kid
 
   defp validate_breakglass(production?) do
     ttl = Application.get_env(:dispatch, :breakglass, []) |> Keyword.get(:max_ttl_seconds, 1_800)

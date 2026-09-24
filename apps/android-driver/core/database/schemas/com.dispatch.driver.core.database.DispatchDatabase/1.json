@@ -1,0 +1,184 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "604765e182aff36e48dc9d249431cff2",
+    "entities": [
+      {
+        "tableName": "pending_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`local_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `kind` TEXT NOT NULL, `canonical_json` TEXT NOT NULL, `device_sequence` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `attempt_count` INTEGER NOT NULL, `next_attempt_at` INTEGER NOT NULL, `state` TEXT NOT NULL, `role_assignment_id` TEXT NOT NULL, `rejection_code` TEXT, `corrective_action` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "localId",
+            "columnName": "local_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "canonicalJson",
+            "columnName": "canonical_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceSequence",
+            "columnName": "device_sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attempt_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextAttemptAt",
+            "columnName": "next_attempt_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "roleAssignmentId",
+            "columnName": "role_assignment_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rejectionCode",
+            "columnName": "rejection_code",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "correctiveAction",
+            "columnName": "corrective_action",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "local_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_pending_events_device_sequence",
+            "unique": true,
+            "columnNames": [
+              "device_sequence"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_pending_events_device_sequence` ON `${TABLE_NAME}` (`device_sequence`)"
+          },
+          {
+            "name": "index_pending_events_state_next_attempt_at",
+            "unique": false,
+            "columnNames": [
+              "state",
+              "next_attempt_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pending_events_state_next_attempt_at` ON `${TABLE_NAME}` (`state`, `next_attempt_at`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "cached_driver_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singleton_id` INTEGER NOT NULL, `json` TEXT NOT NULL, `server_version` INTEGER NOT NULL, `fetched_at` INTEGER NOT NULL, PRIMARY KEY(`singleton_id`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singleton_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverVersion",
+            "columnName": "server_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetched_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singleton_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "cached_capability_document",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singleton_id` INTEGER NOT NULL, `token` TEXT NOT NULL, `fetched_at` INTEGER NOT NULL, PRIMARY KEY(`singleton_id`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singleton_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "token",
+            "columnName": "token",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetched_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singleton_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '604765e182aff36e48dc9d249431cff2')"
+    ]
+  }
+}

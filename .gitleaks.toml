@@ -15,6 +15,12 @@ targets = ["path"]
 paths = [
   '''infra/oidc/dex\.yaml''',
   '''\.env\.example''',
+  # ADR-0009: the development capability-signing key. Every checkout holds it,
+  # which is why Dispatch.Config refuses it in production.
+  '''infra/capability-signing/development\.pem''',
+  # A capability document signed with that key, pinning the client verifier
+  # to the server's actual output. It grants nothing on its own.
+  '''apps/android-driver/core/model/src/test/resources/.*\.jws''',
 ]
 
 # Reviewed by hash in central/priv/static/vendor/VENDOR.md, not by scanning.

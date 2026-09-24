@@ -5,6 +5,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -37,7 +38,8 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.kotlinx.coroutines.android)
+    // `StateFlow` is part of this module's public API (`CapabilityProvider`).
+    api(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)

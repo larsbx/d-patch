@@ -212,6 +212,37 @@ defmodule Dispatch.ConfigTest do
     end
   end
 
+  describe "capability signing key (ADR-0009)" do
+    setup do
+      original = Application.get_env(:dispatch, :capability_signing_key)
+      on_exit(fn -> Application.put_env(:dispatch, :capability_signing_key, original) end)
+      :ok
+    end
+
+    @key_env "CAPABILITY_SIGNING_KEY"
+
+    test "the published development key is refused in production and allowed elsewhere" do
+      assert codes(:test, @key_env) == []
+      assert codes(:prod, @key_env) == ["CAPABILITY_SIGNING_KEY_IS_DEVELOPMENT_KEY"]
+    end
+
+    test "a missing or unreadable key fails production startup" do
+      for pem <- [nil, "", "-----BEGIN PRIVATE KEY-----\nnot a key\n-----END PRIVATE KEY-----\n"] do
+        Application.put_env(:dispatch, :capability_signing_key, pem)
+        assert codes(:prod, @key_env) == ["CAPABILITY_SIGNING_KEY_UNUSABLE"]
+      end
+    end
+
+    test "a deployment's own key passes" do
+      key = :public_key.generate_key({:namedCurve, :secp256r1})
+      pem = :public_key.pem_encode([:public_key.pem_entry_encode(:PrivateKeyInfo, key)])
+
+      Application.put_env(:dispatch, :capability_signing_key, pem)
+
+      assert codes(:prod, @key_env) == []
+    end
+  end
+
   test "validate!/1 raises on an invalid configuration" do
     Application.put_env(:dispatch, :breakglass, max_ttl_seconds: 10)
 
