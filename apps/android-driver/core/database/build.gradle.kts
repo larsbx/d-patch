@@ -46,8 +46,10 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
-    implementation(projects.core.model)
-    implementation(libs.room.runtime)
+    // `OutboxView` carries core:model types, so consumers need them too.
+    api(projects.core.model)
+    // `DispatchDatabase` is a `RoomDatabase`, so Room is part of this API.
+    api(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.kotlinx.serialization.json)
