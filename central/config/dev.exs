@@ -51,6 +51,16 @@ config :dispatch, :role_profile_module_allowlist, [
   Dispatch.Access.Roles.Broker
 ]
 
+# ADR-0009: the published development key, so a clean checkout signs capability
+# documents the debug Android build can verify. Production rejects it. Absent
+# (a checkout without `infra/`), the capability endpoint answers 503.
+config :dispatch,
+       :capability_signing_key,
+       (case File.read(Path.expand("../../infra/capability-signing/development.pem", __DIR__)) do
+          {:ok, pem} -> pem
+          {:error, _reason} -> nil
+        end)
+
 config :dispatch, :diagnostics_token, String.duplicate("dev-diagnostics-token", 2)
 
 config :logger, level: :debug

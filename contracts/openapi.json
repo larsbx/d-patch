@@ -2,6 +2,20 @@
   "components": {
     "responses": {},
     "schemas": {
+      "CapabilityDocumentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "description": "Compact JWS (ES256, typ capability+jws). Payload: schema_version, sub, tenant_id, participant_id, role_assignment_id, role, capabilities, features, status_options, iat, exp.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document"
+        ],
+        "title": "CapabilityDocumentResponse",
+        "type": "object"
+      },
       "CurrentStatus": {
         "additionalProperties": false,
         "properties": {
@@ -204,6 +218,40 @@
           "checks"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "RoleAssignmentChoice": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "RoleAssignmentChoice",
+        "type": "object"
+      },
+      "RoleAssignmentList": {
+        "additionalProperties": false,
+        "properties": {
+          "role_assignments": {
+            "items": {
+              "$ref": "#/components/schemas/RoleAssignmentChoice"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "role_assignments"
+        ],
+        "title": "RoleAssignmentList",
         "type": "object"
       },
       "StatusEvent": {
@@ -617,6 +665,45 @@
         ]
       }
     },
+    "/v1/me/role-assignments": {
+      "get": {
+        "callbacks": {},
+        "description": "Identifiers and labels only. Choose one and send it as\n`X-Role-Assignment-ID`; the choice selects authority context, it never\ngrants it.\n",
+        "operationId": "DispatchWeb.RoleCapabilityController.assignments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleAssignmentList"
+                }
+              }
+            },
+            "description": "Selectable assignments"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List the role assignments this principal may act under",
+        "tags": [
+          "roles"
+        ]
+      }
+    },
     "/v1/me/status-events": {
       "post": {
         "callbacks": {},
@@ -723,6 +810,75 @@
         "summary": "Declare a participant status",
         "tags": [
           "status"
+        ]
+      }
+    },
+    "/v1/role-capabilities": {
+      "get": {
+        "callbacks": {},
+        "description": "Features are enabled from this document, never from a role key. It governs\nwhat the client offers; every request is still authorized by the server.\n",
+        "operationId": "DispatchWeb.RoleCapabilityController.capabilities",
+        "parameters": [
+          {
+            "description": "Selects which held role assignment the document describes.",
+            "in": "header",
+            "name": "x-role-assignment-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityDocumentResponse"
+                }
+              }
+            },
+            "description": "Signed document"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Problem"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The signed capability document for the selected role assignment",
+        "tags": [
+          "roles"
         ]
       }
     }

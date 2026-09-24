@@ -159,6 +159,13 @@ if allowlist = System.get_env("ROLE_PROFILE_MODULE_ALLOWLIST") do
   end
 end
 
+# ADR-0009: a PKCS#8 P-256 private key in PEM. Unset leaves what the compiled
+# configuration chose — the published development key outside production,
+# nothing in it, which `Dispatch.Config` then refuses.
+if pem = System.get_env("CAPABILITY_SIGNING_KEY") do
+  config :dispatch, :capability_signing_key, pem
+end
+
 if config_env() == :prod do
   config :dispatch, Dispatch.Repo,
     url: require_env.("DATABASE_URL"),

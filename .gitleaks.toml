@@ -15,6 +15,9 @@ targets = ["path"]
 paths = [
   '''infra/oidc/dex\.yaml''',
   '''\.env\.example''',
+  # ADR-0009: the development capability-signing key. Every checkout holds it,
+  # which is why Dispatch.Config refuses it in production.
+  '''infra/capability-signing/development\.pem''',
 ]
 
 # Reviewed by hash in central/priv/static/vendor/VENDOR.md, not by scanning.

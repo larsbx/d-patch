@@ -85,6 +85,9 @@ services:
       - ./central:/app
       - central-build:/app/_build
       - central-deps:/app/deps
+      # ADR-0009: the published development signing key, where config/dev.exs
+      # looks for it relative to /app/config.
+      - ./infra/capability-signing:/infra/capability-signing:ro
     healthcheck:
       # Section 32: readiness asserts the database and migration state and makes
       # no outbound paid-provider call.
