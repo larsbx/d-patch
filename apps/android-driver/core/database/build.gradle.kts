@@ -7,6 +7,12 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Exported so a schema change shows in review and a migration can be tested
+// against the version it migrates from.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "com.dispatch.driver.core.database"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -26,6 +32,10 @@ android {
         jvmTarget = "17"
     }
 
+    // The server-signed capability fixture lives with the verifier's tests; the
+    // store's tests read the same bytes rather than a copy that could drift.
+    sourceSets["test"].resources.srcDir("../model/src/test/resources")
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -40,7 +50,9 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+    implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }
