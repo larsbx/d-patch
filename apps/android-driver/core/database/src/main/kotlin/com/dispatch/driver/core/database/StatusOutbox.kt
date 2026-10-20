@@ -94,16 +94,16 @@ class StatusOutbox(
     private suspend fun acknowledge(event: PendingEventEntity, current: CurrentStatus) =
         database.withTransaction {
             dao.acknowledge(event.localId)
-            val cached = dao.driverState()
-            if (cached == null || cached.serverVersion < event.deviceSequence) {
-                dao.putDriverState(
-                    CachedDriverStateEntity(
-                        json = json.encodeToString(CurrentStatus.serializer(), current),
-                        serverVersion = event.deviceSequence,
-                        fetchedAt = clock(),
-                    ),
-                )
-            }
+            // The latest answer wins: see `CachedDriverStateEntity`. Ordering by
+            // the submitted event's device sequence would keep a stale status
+            // over a retry's newer server truth.
+            dao.putDriverState(
+                CachedDriverStateEntity(
+                    json = json.encodeToString(CurrentStatus.serializer(), current),
+                    serverVersion = (dao.driverState()?.serverVersion ?: 0) + 1,
+                    fetchedAt = clock(),
+                ),
+            )
         }
 
     private fun PendingEventEntity.toEntry(): OutboxEntry {

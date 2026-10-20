@@ -83,6 +83,14 @@ class DispatchClient internal constructor(private val api: DispatchApi) : Status
     }
 
     companion object {
+        /**
+         * Retrofit refuses a base URL without a trailing `/`, and it would do so
+         * when Hilt first builds this client — a crash on launch for a release
+         * configured with the conventional `https://api.example.com`. The `/v1`
+         * paths are relative, so the slash is always what was meant.
+         */
+        internal fun retrofitBaseUrl(baseUrl: String): String = baseUrl.trim().let { if (it.endsWith("/")) it else "$it/" }
+
         private val JSON = "application/json".toMediaType()
         private val json = Json { ignoreUnknownKeys = true }
 
@@ -104,7 +112,7 @@ class DispatchClient internal constructor(private val api: DispatchApi) : Status
                     )
                 })
                 .build()
-            val retrofit = Retrofit.Builder().baseUrl(baseUrl).client(authenticated).build()
+            val retrofit = Retrofit.Builder().baseUrl(retrofitBaseUrl(baseUrl)).client(authenticated).build()
             return DispatchClient(retrofit.create(DispatchApi::class.java))
         }
     }

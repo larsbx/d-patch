@@ -118,6 +118,19 @@ class DispatchClientTest {
     }
 
     @Test
+    fun `a base URL without a trailing slash is accepted, not a crash on launch`() = runTest {
+        // Retrofit throws for a base URL whose path lacks a trailing slash
+        // (`https://host/api`). A bare host already parses with path `/`.
+        val bare = DispatchClient.create(server.url("/api").toString(), session)
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"role_assignments":[]}"""))
+
+        assertEquals(Fetch.Ok(emptyList<RoleAssignmentChoice>()), bare.roleAssignments())
+        assertEquals("/api/v1/me/role-assignments", server.takeRequest().path)
+        assertEquals("https://api.example.com/", DispatchClient.retrofitBaseUrl(" https://api.example.com "))
+        assertEquals("https://api.example.com/base/", DispatchClient.retrofitBaseUrl("https://api.example.com/base/"))
+    }
+
+    @Test
     fun `role assignments list identifiers and labels`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"role_assignments":[{"id":"ra-1","label":"Driver"}]}"""))
 

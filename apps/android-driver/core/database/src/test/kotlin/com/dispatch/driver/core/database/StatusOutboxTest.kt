@@ -149,7 +149,7 @@ class StatusOutboxTest {
     }
 
     @Test
-    fun `a late acknowledgement cannot overwrite a newer one`() = runTest {
+    fun `the latest server answer wins, even for a retried lower-sequence event`() = runTest {
         outbox.declare("AT_PICKUP", null, "ra-1")
         outbox.declare("LOADING", null, "ra-1")
 
@@ -159,12 +159,14 @@ class StatusOutboxTest {
         outbox.sync(Server(::stored))
         assertEquals("LOADING", outbox.view().first().acknowledged?.value)
 
-        // AT_PICKUP is acknowledged later, carrying its own older answer.
+        // Meanwhile a newer status was recorded elsewhere (another handset, the
+        // portal). The AT_PICKUP retry's answer carries that newer truth, and
+        // its lower device sequence must not discard it.
         now += StatusOutbox.backoffMillis(1)
-        outbox.sync(Server(::stored))
+        outbox.sync(Server { SubmitResult.Stored(CurrentStatus("DELAYED", "PARTICIPANT", "2026-09-24T12:00:00Z")) })
 
         assertTrue(events().all { it.state == PendingState.ACKNOWLEDGED })
-        assertEquals("LOADING", outbox.view().first().acknowledged?.value)
+        assertEquals("DELAYED", outbox.view().first().acknowledged?.value)
     }
 
     @Test

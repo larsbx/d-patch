@@ -52,12 +52,17 @@ class SyncWorker @AssistedInject constructor(
 }
 
 /**
- * Enqueues [SyncWorker] as unique work. `KEEP` because a run already queued or
- * in flight will pick up the new event: it re-reads what is pending when it
- * finishes and retries rather than succeeding.
+ * Enqueues [SyncWorker] as unique work with `APPEND_OR_REPLACE`.
+ *
+ * `KEEP` would lose a request made while a run is finishing: an event declared
+ * after that run's last look at the outbox, but before it reaches `SUCCEEDED`,
+ * would see its enqueue ignored and wait until the next declaration or launch.
+ * Appending chains a run after the current one, so every request made during a
+ * run gets a run that starts after it; a failed or cancelled chain is replaced
+ * rather than inherited. A chained run with nothing due drains at once.
  */
 class WorkManagerSyncRequester(private val workManager: WorkManager) : SyncRequester {
     override fun requestSync() {
-        workManager.enqueueUniqueWork(SyncWorker.UNIQUE_NAME, ExistingWorkPolicy.KEEP, SyncWorker.request())
+        workManager.enqueueUniqueWork(SyncWorker.UNIQUE_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, SyncWorker.request())
     }
 }

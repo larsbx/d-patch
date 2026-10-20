@@ -46,8 +46,12 @@ data class PendingEventEntity(
  * outbox, never written back into it, so an optimistic value can never be
  * mistaken for an acknowledged one.
  *
- * `server_version` is the device sequence of the acknowledgement that produced
- * `json`; an older acknowledgement arriving late cannot overwrite a newer one.
+ * Every acknowledgement replaces it. `current_status` is the server's state when
+ * it answered, not the status of the event submitted, and sync is serial, so the
+ * latest answer is the freshest truth — even for a retried event with a lower
+ * device sequence, whose answer may carry a newer status declared elsewhere.
+ * `server_version` counts those answers on this device; the server publishes no
+ * version to compare.
  */
 @Entity(tableName = "cached_driver_state")
 data class CachedDriverStateEntity(
