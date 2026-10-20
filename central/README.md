@@ -1,5 +1,9 @@
 # Central service
 
+> **Frozen.** Development of this server continues in biz-kit's
+> `apps/dispatch` (ADR-0010). This copy stays for `make up` and the existing
+> gates until the e2e suite targets biz-kit; it takes no new features.
+
 The Ash/Phoenix OTP release. Section 21.1 makes this the sole domain
 implementation: it owns durable state, authorization, provider ingress
 validation, the machine API, and the server-rendered portal.

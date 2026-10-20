@@ -6,7 +6,21 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
+
+// ADR-0009: the capability-document verification key (base64url Ed25519) is
+// pinned at build time. Debug pins biz-kit's published development key so a
+// clean checkout works against a local server; release takes the deployment's
+// key and refuses the development one.
+val developmentCapabilityKey: String =
+    rootProject.file("../../infra/capability-signing/development.pub").readText().trim()
+val releaseCapabilityKey: String? = providers.gradleProperty("dispatch.capabilityPublicKey").orNull?.trim()
+val releaseApiBaseUrl: String? = providers.gradleProperty("dispatch.apiBaseUrl").orNull
+
+fun String.asBuildConfigString() = "\"" + replace("\n", "\\n") + "\""
 
 android {
     namespace = "com.dispatch.driver"
@@ -21,13 +35,31 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    packaging {
+        resources {
+            // BouncyCastle and jspecify both ship this OSGi descriptor; the
+            // app is not an OSGi bundle and reads neither.
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
     buildTypes {
         release {
+            buildConfigField("String", "API_BASE_URL", (releaseApiBaseUrl ?: "").asBuildConfigString())
+            buildConfigField("String", "CAPABILITY_PUBLIC_KEY", (releaseCapabilityKey ?: "").asBuildConfigString())
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
+            // The Android emulator's address for the host running `make up`.
+            buildConfigField("String", "API_BASE_URL", "http://10.0.2.2:4000/".asBuildConfigString())
+            buildConfigField("String", "CAPABILITY_PUBLIC_KEY", developmentCapabilityKey.asBuildConfigString())
             isMinifyEnabled = false
         }
     }
@@ -40,6 +72,9 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    // The server-signed capability fixture, shared with the verifier's tests.
+    sourceSets["test"].resources.srcDir("../core/model/src/test/resources")
 
     testOptions {
         unitTests {
@@ -71,6 +106,34 @@ dependencies {
     implementation(projects.infra.face)
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.bundles.compose)
+
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
+    implementation(libs.work.runtime.ktx)
 
     testImplementation(libs.bundles.unit.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.work.testing)
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.kotlinx.serialization.json)
 }
+
+// A release without its deployment's key and API, or with the development key,
+// would verify documents anyone with a checkout can sign. Fail the build instead.
+val checkReleaseConfiguration by tasks.registering {
+    val key = releaseCapabilityKey
+    val url = releaseApiBaseUrl
+    val development = developmentCapabilityKey
+    doLast {
+        check(!url.isNullOrBlank() && url.startsWith("https://")) { "Set dispatch.apiBaseUrl to the HTTPS API base URL." }
+        check(!key.isNullOrBlank()) { "Set dispatch.capabilityPublicKey to the deployment's base64url Ed25519 capability key (ADR-0009)." }
+        check(key != development) { "The development capability key cannot be pinned in a release build (ADR-0009)." }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(checkReleaseConfiguration) }

@@ -148,6 +148,15 @@ check "Section 23.2: no shared policy or feature module may branch on a seeded r
   '(access/seed_manifest\.ex|access/roles/|accounts/role_definition\.ex)' \
   -- central/lib/dispatch/access central/lib/dispatch_web apps
 
+# The literal check above cannot see `document.role.key == selected`. On the
+# client the role key reaches code only through the capability document, so
+# a feature module that reads it at all is one step from branching on it.
+# ADR-0009: features come from `features`, presentation from `role.label`.
+check "Section 23.2: Android feature modules must not read the role key" \
+  'role\.key\b' \
+  '' \
+  -- apps/android-driver/feature
+
 check "Section 26.1: the Datastar bundle must be served from this origin, not a CDN" \
   'src="https?://[^"]*datastar' \
   '' \

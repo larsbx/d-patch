@@ -49,6 +49,11 @@ introduces and the control that answers them.
 | A log call adds a sensitive field | The formatter emits only allowlisted metadata keys | `Dispatch.LogFormatter` |
 | Coordinates reach the DOM, analytics, or a client log | The map element holds them in memory only; asserted by test | `participant-map.js`, `web/test/` |
 | A biometric template survives a device backup | Cloud backup and device transfer are excluded wholesale | `data_extraction_rules.xml` |
+| A forged or edited capability document enables a surface the role lacks | Ed25519 over the received canonical bytes, key pinned at build time, verified again on every read from storage; features exceed no capability server-side | ADR-0009, `CapabilityDocumentVerifier`, `CapabilityStore`; biz-kit `Dispatch.Access.CapabilityDocument` |
+| A capability document is replayed under another login or role | Bound to `sub` and `role_assignment_id`; the client rejects a mismatch | `CapabilityDocumentVerifierTest` |
+| Bytes the platform signed for another purpose pass as a capability document | Claims carry `schema: DispatchCapabilityDocumentV1` and no `type`; the client checks the schema after the signature | ADR-0009, `CapabilityDocumentVerifierTest` |
+| Production signs with the development key every checkout holds | biz-kit refuses the published seed (by full public key) and a missing one at startup; a release app build refuses the development key | biz-kit `Dispatch.Config`; `checkReleaseConfiguration` |
+| A queued declaration is sent under a role selected after it was made | The outbox row records its assignment and is sent under it | `StatusOutbox`, `StatusOutboxTest` |
 
 ## Open, owned by later slices
 

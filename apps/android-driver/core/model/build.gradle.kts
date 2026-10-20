@@ -5,6 +5,7 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -37,7 +38,12 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.kotlinx.coroutines.android)
+    // The capability document is Ed25519 over CoopEventCanonicalV1 (CBOR)
+    // bytes: the platform's one signature scheme (ADR-0009).
+    implementation(libs.kotlinx.serialization.cbor)
+    implementation(libs.bouncycastle.prov)
+    // `StateFlow` is part of this module's public API (`CapabilityProvider`).
+    api(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
