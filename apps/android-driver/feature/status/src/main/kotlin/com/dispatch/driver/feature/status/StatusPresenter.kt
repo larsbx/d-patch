@@ -71,11 +71,27 @@ object StatusPresenter {
         return StatusUiState.Ready(
             options = document.statusOptions,
             current = current(document, outbox),
-            attention = outbox.events.filter { it.state == PendingState.REJECTED || it.correctiveAction != null },
+            attention = attention(outbox.events),
             roleAssignmentId = document.roleAssignmentId,
             capabilitiesStale = stale,
         )
     }
+
+    /**
+     * What needs the participant: queued events with something to do about them
+     * (signing in, say), and a rejection only while it is the newest declaration.
+     * Declaring again is how a participant answers a rejection, so once they
+     * have, the old "not accepted" notice would only contradict the screen.
+     * `events` is newest first (outbox order).
+     */
+    private fun attention(events: List<OutboxEntry>): List<OutboxEntry> =
+        events.filterIndexed { index, entry ->
+            when (entry.state) {
+                PendingState.REJECTED -> index == 0
+                PendingState.PENDING -> entry.correctiveAction != null
+                PendingState.ACKNOWLEDGED -> false
+            }
+        }
 
     /**
      * The newest declaration by the time it was *made*, local or confirmed.
