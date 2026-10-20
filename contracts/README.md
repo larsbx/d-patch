@@ -26,3 +26,11 @@ duplicated production traffic. Fixtures land here with Slice 4.
 
 A fixture MUST NOT contain a real phone number, a real provider credential, or
 content recorded without consent.
+
+## `biz-kit-dispatch.openapi.json`
+
+The server's contract as the field app consumes it: a copy of biz-kit's
+generated `apps/dispatch/contracts/openapi.json` (ADR-0010). Refresh it with
+`scripts/sync-dispatch-contract.sh`; `--check` fails when it is stale. The
+Android `ContractConformanceTest` holds the client's DTOs to it.
+`openapi.json` above remains `central/`'s.

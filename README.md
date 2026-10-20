@@ -45,7 +45,7 @@ deliberately so they cannot be mistaken for production secrets.
 ## Layout
 
 ```
-central/               Ash/Phoenix OTP release — the sole domain implementation
+central/               frozen snapshot of the server; development continues in biz-kit (ADR-0010)
 apps/android-driver/   Kotlin/Compose field application
 contracts/             OpenAPI 3.1, generated and diff-checked from central/
 infra/                 container images, reverse proxy, local OIDC
@@ -98,10 +98,16 @@ documented as approved.
 
 ## Status
 
+The server now lives in [biz-kit](https://github.com/larsbx/biz-kit) as
+`apps/dispatch`, beside the signed ledger, principal registry and grants it is
+consolidating onto (ADR-0010). Server work lands there; this repository keeps
+the clients, the specification and the client ADRs. `central/` is the frozen
+snapshot `make up` and the existing gates still run against.
+
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **identity, access, loads, parties, status declarations, the audit chain, the `/v1` status-ingestion surface, and the role-scoped portal pages done**; Datastar streams and the Android UI remain |
+| 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. **Remaining:** Android sign-in through `BizKit.Identity`, device keys through biz-kit's enrolment, the exit-criterion end-to-end runs against biz-kit |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -149,8 +155,40 @@ That is what makes acceptance criterion 16 — a dispatcher losing the stream
 *immediately* when the relationship ends — true of an idle socket and not only
 of one that happens to receive an event.
 
-The operations roster stream and the Android offline status UI (§25.2) are the
-remainder.
+The operations roster stream (`GET /ui/operations/stream`) is live beside it.
+
+The field application enables features from a signed capability document
+(§23.2, ADR-0009), served by biz-kit at `GET /v1/role-capabilities`: canonical
+CBOR claims with an Ed25519 signature, the platform's one signature scheme. The
+claims are bound to the caller, tenant, participant and selected assignment;
+they list the role's features — each only if the assignment holds the
+capability it exercises — and §5.1's status vocabulary, so the app holds no
+second copy of it. The app pins the verification key at build time and enables
+nothing a document does not say, from nothing that does not verify.
+
+Status declarations go through §25.2's Room outbox: the device sequence is
+allocated and the pending row written in one transaction, the screen updates
+from that row, and `SyncWorker` (network required, charging not) sends due
+events oldest first under the assignment each was declared under. A rejection
+is final and shows its corrective action; anything else keeps the event
+queued. Android sign-in is not built yet, so the app currently reports itself
+signed out and offers nothing.
+
+### Next (Slice 1 remainder)
+
+Each of these reuses biz-kit rather than building it here (ADR-0010):
+
+1. **Sign-in** — `core:auth` against `BizKit.Identity` (WorkOS today). biz-kit
+   sessions are browser cookies, so a mobile flow that yields a bearer token
+   for `/v1` is new work there first.
+2. **Device keys and signed events** — an Ed25519 key per installation,
+   enrolled through `CoopSubstrate.Enrolments` (signed request, governance
+   approval), replacing `devices.public_key` and §25.2's `device_signature`
+   design here.
+3. **Exit-criterion end-to-end runs** (tests 1, 13–19, online and after an
+   offline interval) against biz-kit rather than `central/`.
+4. Later, when dispatch's roles become ledger grants: read grants from
+   biz-kit's change feed and retire the capability document.
 
 ## Contributing
 
