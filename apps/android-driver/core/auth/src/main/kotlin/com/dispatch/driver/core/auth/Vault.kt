@@ -16,7 +16,12 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 @Serializable
-data class SignedIn(val accessToken: String, val subject: String, val expiresAtEpochMs: Long)
+data class SignedIn(
+    val accessToken: String,
+    val subject: String,
+    /** Null: valid until signed out (or refused by the server). */
+    val expiresAtEpochMs: Long? = null,
+)
 
 /** Everything sign-in keeps between launches. */
 @Serializable

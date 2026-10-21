@@ -175,11 +175,12 @@ queued.
 
 The app signs in through biz-kit's native sign-in (ADR-0011): the system
 browser, PKCE, and a biz-kit session as the bearer token dispatch accepts. The
-session and any sign-in in flight are sealed under an Android Keystore key. An
-expired session sends no token, so queued work waits for the next sign-in while
-the stored capability document keeps working offline. ADR-0011 is proposed: the
-one-hour session without refresh replaces §23.1's 15-minute token and rotating
-refresh token, and needs approval.
+session and any sign-in in flight are sealed under an Android Keystore key.
+The session lasts until the person signs out, across biz-kit restarts; one the
+server ends early is answered `401`, and queued work waits for the next
+sign-in while the stored capability document keeps working offline. ADR-0011
+records the decision that replaces §23.1's 15-minute token and rotating
+refresh token.
 
 Each installation registers its own Ed25519 key with biz-kit once signed in
 (ADR-0012), and signs every declaration as it is queued, offline or not, over

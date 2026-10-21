@@ -22,11 +22,12 @@ sealed interface SignInOutcome {
 
 /**
  * The session the app runs under: a biz-kit session obtained by native sign-in
- * (ADR-0011), kept sealed in [vault].
- *
- * An expired session sends no token, so dispatch answers `401`, queued work
- * waits, and [signInRequired] turns true. Its subject is kept until sign-out,
- * so the stored capability document still verifies offline.
+ * (ADR-0011), kept sealed in [vault]. It is sent until the person signs out:
+ * biz-kit's native sessions have no time limit. Only the server ends it early
+ * (revocation, unbinding), answering `401`, which turns [signInRequired] on
+ * while queued work waits. A session the server did limit is not sent past its
+ * expiry. The subject is kept until sign-out, so the stored capability
+ * document still verifies offline.
  */
 class AuthSession(
     private val config: SignInConfig,
@@ -67,7 +68,7 @@ class AuthSession(
             is AuthResult.Ok -> principal.value
             else -> return failed(principal)
         }
-        val signedIn = SignedIn(grant.accessToken, subject, clock.millis() + grant.expiresInSeconds * 1000)
+        val signedIn = SignedIn(grant.accessToken, subject, grant.expiresInSeconds?.let { clock.millis() + it * 1000 })
         if (!keep(AuthRecord(session = signedIn))) return SignInOutcome.Failed(reachable = true)
         _signInRequired.value = false
         return SignInOutcome.SignedIn
@@ -92,7 +93,9 @@ class AuthSession(
     }
 
     private fun current(): String? =
-        record.session?.takeIf { clock.millis() < it.expiresAtEpochMs - EXPIRY_MARGIN.toMillis() }?.accessToken
+        record.session?.takeIf { session ->
+            session.expiresAtEpochMs.let { it == null || clock.millis() < it - EXPIRY_MARGIN.toMillis() }
+        }?.accessToken
 
     private fun failed(result: AuthResult<*>) = SignInOutcome.Failed(reachable = result !is AuthResult.Unreachable)
 
