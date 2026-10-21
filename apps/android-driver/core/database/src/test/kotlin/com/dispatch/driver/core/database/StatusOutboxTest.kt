@@ -149,6 +149,22 @@ class StatusOutboxTest {
     }
 
     @Test
+    fun `after sign-in, events a refused session deferred are due at once`() = runTest {
+        outbox.declare("AT_PICKUP", null, "ra-1")
+        outbox.sync(Server { SubmitResult.Problem(401, "UNAUTHENTICATED", null) })
+        now += 1_000
+
+        outbox.retryNow()
+
+        val event = events().single()
+        assertNull("the advice no longer applies", event.correctiveAction)
+        assertEquals("the backoff still counts the attempt", 1, event.attemptCount)
+        val server = Server(::stored)
+        assertEquals(SyncOutcome.Drained, outbox.sync(server))
+        assertEquals(1, server.received.size)
+    }
+
+    @Test
     fun `the latest server answer wins, even for a retried lower-sequence event`() = runTest {
         outbox.declare("AT_PICKUP", null, "ra-1")
         outbox.declare("LOADING", null, "ra-1")

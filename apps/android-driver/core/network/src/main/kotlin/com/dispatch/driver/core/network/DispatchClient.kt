@@ -99,6 +99,7 @@ class DispatchClient internal constructor(private val api: DispatchApi) : Status
          *
          * A request made with no token goes out without one and comes back
          * `401`, which `Disposition` keeps queued: signing in is what sends it.
+         * Every `401` is reported to [session], so the app can offer sign-in.
          */
         fun create(baseUrl: String, session: SessionProvider, http: OkHttpClient = OkHttpClient()): DispatchClient {
             val authenticated = http.newBuilder()
@@ -109,7 +110,7 @@ class DispatchClient internal constructor(private val api: DispatchApi) : Status
                             .apply { if (token != null) header("Authorization", "Bearer $token") }
                             .header("Accept", "application/json")
                             .build(),
-                    )
+                    ).also { if (it.code == 401) session.rejected(token) }
                 })
                 .build()
             val retrofit = Retrofit.Builder().baseUrl(retrofitBaseUrl(baseUrl)).client(authenticated).build()

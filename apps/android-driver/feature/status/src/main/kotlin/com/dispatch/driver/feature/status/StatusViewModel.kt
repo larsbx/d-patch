@@ -6,6 +6,7 @@ import com.dispatch.driver.core.database.StatusOutbox
 import com.dispatch.driver.core.model.capability.CapabilityProvider
 import com.dispatch.driver.core.model.capability.CapabilityState
 import com.dispatch.driver.core.model.capability.SyncRequester
+import com.dispatch.driver.core.model.session.SessionProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,12 +25,13 @@ import javax.inject.Inject
 @HiltViewModel
 class StatusViewModel @Inject constructor(
     private val capabilities: CapabilityProvider,
+    session: SessionProvider,
     private val outbox: StatusOutbox,
     private val sync: SyncRequester,
 ) : ViewModel() {
 
     val state: StateFlow<StatusUiState> =
-        combine(capabilities.state, outbox.view(), StatusPresenter::present)
+        combine(capabilities.state, outbox.view(), session.signInRequired, StatusPresenter::present)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatusUiState.Loading)
 
     private val _error = MutableStateFlow<String?>(null)

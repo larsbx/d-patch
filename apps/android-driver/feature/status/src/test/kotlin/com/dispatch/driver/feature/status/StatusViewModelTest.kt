@@ -6,9 +6,11 @@ import com.dispatch.driver.core.database.DispatchDatabase
 import com.dispatch.driver.core.database.StatusOutbox
 import com.dispatch.driver.core.model.capability.CapabilityProvider
 import com.dispatch.driver.core.model.capability.CapabilityState
+import com.dispatch.driver.core.model.session.SessionProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -42,6 +44,14 @@ class StatusViewModelTest {
         override suspend fun refresh() { refreshes++ }
     }
 
+    private val session = object : SessionProvider {
+        override suspend fun accessToken() = "t"
+        override fun subject() = "prn_1"
+        override fun selectedRoleAssignmentId() = null
+        override val signInRequired = MutableStateFlow(false)
+        override fun rejected(token: String?) = Unit
+    }
+
     @Before
     fun main() = Dispatchers.setMain(UnconfinedTestDispatcher())
 
@@ -51,7 +61,7 @@ class StatusViewModelTest {
         database.close()
     }
 
-    private fun viewModel() = StatusViewModel(capabilities, outbox) { syncRequests++ }
+    private fun viewModel() = StatusViewModel(capabilities, session, outbox) { syncRequests++ }
 
     @Test
     fun `opening the screen refreshes capabilities and gives the queue a chance to send`() {
@@ -86,6 +96,18 @@ class StatusViewModelTest {
         assertEquals("Delayed needs a note saying what is happening.", vm.error.value)
         assertTrue(outbox.view().first().events.isEmpty())
         assertEquals(1, syncRequests)
+    }
+
+    @Test
+    fun `a session the server refused offers sign-in, and work can still be queued`() = runTest {
+        val vm = viewModel()
+        backgroundScope.launch { vm.state.collect {} }
+
+        session.signInRequired.value = true
+
+        val ready = vm.state.first { it is StatusUiState.Ready && it.signInRequired } as StatusUiState.Ready
+        assertTrue(ready.options.isNotEmpty())
+        assertTrue(vm.declare("AT_PICKUP", null))
     }
 
     @Test

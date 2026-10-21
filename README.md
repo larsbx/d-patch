@@ -171,23 +171,27 @@ allocated and the pending row written in one transaction, the screen updates
 from that row, and `SyncWorker` (network required, charging not) sends due
 events oldest first under the assignment each was declared under. A rejection
 is final and shows its corrective action; anything else keeps the event
-queued. Android sign-in is not built yet, so the app currently reports itself
-signed out and offers nothing.
+queued.
+
+The app signs in through biz-kit's native sign-in (ADR-0011): the system
+browser, PKCE, and a biz-kit session as the bearer token dispatch accepts. The
+session and any sign-in in flight are sealed under an Android Keystore key. An
+expired session sends no token, so queued work waits for the next sign-in while
+the stored capability document keeps working offline. ADR-0011 is proposed: the
+one-hour session without refresh replaces §23.1's 15-minute token and rotating
+refresh token, and needs approval.
 
 ### Next (Slice 1 remainder)
 
 Each of these reuses biz-kit rather than building it here (ADR-0010):
 
-1. **Sign-in** — `core:auth` against `BizKit.Identity` (WorkOS today). biz-kit
-   sessions are browser cookies, so a mobile flow that yields a bearer token
-   for `/v1` is new work there first.
-2. **Device keys and signed events** — an Ed25519 key per installation,
+1. **Device keys and signed events** — an Ed25519 key per installation,
    enrolled through `CoopSubstrate.Enrolments` (signed request, governance
    approval), replacing `devices.public_key` and §25.2's `device_signature`
    design here.
-3. **Exit-criterion end-to-end runs** (tests 1, 13–19, online and after an
+2. **Exit-criterion end-to-end runs** (tests 1, 13–19, online and after an
    offline interval) against biz-kit rather than `central/`.
-4. Later, when dispatch's roles become ledger grants: read grants from
+3. Later, when dispatch's roles become ledger grants: read grants from
    biz-kit's change feed and retire the capability document.
 
 ## Contributing

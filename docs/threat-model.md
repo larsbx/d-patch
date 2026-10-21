@@ -53,6 +53,10 @@ introduces and the control that answers them.
 | A capability document is replayed under another login or role | Bound to `sub` and `role_assignment_id`; the client rejects a mismatch | `CapabilityDocumentVerifierTest` |
 | Bytes the platform signed for another purpose pass as a capability document | Claims carry `schema: DispatchCapabilityDocumentV1` and no `type`; the client checks the schema after the signature | ADR-0009, `CapabilityDocumentVerifierTest` |
 | Production signs with the development key every checkout holds | biz-kit refuses the published seed (by full public key) and a missing one at startup; a release app build refuses the development key | biz-kit `Dispatch.Config`; `checkReleaseConfiguration` |
+| Another app on the device catches the sign-in redirect and redeems the code | PKCE S256: the code is useless without the verifier, which never leaves the app; the redirect is honoured only with the state of the sign-in in progress | ADR-0011, `SignInTest`, `AuthSessionTest`; biz-kit `BizKit.Identity.NativeLogins` |
+| A forged redirect signs the device into the attacker's account | A redirect without the in-progress state changes nothing, and each is used once | ADR-0011, `AuthSessionTest` |
+| The session is read from storage or a backup | Sealed with AES-256-GCM under an Android Keystore key; backup is excluded; a record that no longer opens reads as signed out | ADR-0011, `VaultTest`, `data_extraction_rules.xml` |
+| After a hand-over, the previous person's queued events go out as the new person's | Events are sent under the assignment they were declared under; dispatch refuses another principal's assignment | ADR-0011; biz-kit `DispatchWeb.Plugs.ResolveActor` |
 | A queued declaration is sent under a role selected after it was made | The outbox row records its assignment and is sent under it | `StatusOutbox`, `StatusOutboxTest` |
 
 ## Open, owned by later slices

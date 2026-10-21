@@ -6,6 +6,7 @@ import com.dispatch.driver.core.database.PendingState
 import com.dispatch.driver.core.model.capability.CapabilityState
 import com.dispatch.driver.core.model.status.CurrentStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,8 +30,17 @@ class StatusPresenterTest {
     @Test
     fun `without a verified document nothing is offered`() {
         assertEquals(StatusUiState.Loading, StatusPresenter.present(CapabilityState.Loading, empty))
-        assertTrue(StatusPresenter.present(CapabilityState.SignedOut, empty) is StatusUiState.NotOffered)
+        assertEquals(StatusUiState.SignInRequired, StatusPresenter.present(CapabilityState.SignedOut, empty))
         assertEquals(StatusUiState.NotOffered("offline"), StatusPresenter.present(CapabilityState.Unavailable("offline"), empty))
+    }
+
+    @Test
+    fun `a refused session offers sign-in beside what still works offline`() {
+        val state = StatusPresenter.present(CapabilityState.Ready(document(), false), empty, signInRequired = true) as StatusUiState.Ready
+
+        assertTrue(state.signInRequired)
+        assertTrue(state.options.isNotEmpty())
+        assertFalse(ready().signInRequired)
     }
 
     @Test

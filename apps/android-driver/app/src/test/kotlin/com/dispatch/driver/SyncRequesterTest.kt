@@ -48,4 +48,18 @@ class SyncRequesterTest {
         assertEquals(2, runs.size)
         assertTrue(runs.any { it.state == WorkInfo.State.BLOCKED })
     }
+
+    @Test
+    fun `a sync after sign-in replaces a backed-off chain rather than waiting behind it`() {
+        val requester = WorkManagerSyncRequester(workManager)
+        requester.requestSync()
+        requester.requestSync()
+        val waiting = chain().map { it.id }.toSet()
+
+        requester.requestSyncNow()
+
+        val live = chain().filterNot { it.state.isFinished }
+        assertEquals(1, live.size)
+        assertTrue(live.single().id !in waiting)
+    }
 }

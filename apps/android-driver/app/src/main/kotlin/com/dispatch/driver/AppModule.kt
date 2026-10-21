@@ -2,6 +2,11 @@ package com.dispatch.driver
 
 import android.content.Context
 import androidx.work.WorkManager
+import com.dispatch.driver.core.auth.AesGcmSealer
+import com.dispatch.driver.core.auth.AuthApi
+import com.dispatch.driver.core.auth.AuthSession
+import com.dispatch.driver.core.auth.SealedPrefsVault
+import com.dispatch.driver.core.auth.SignInConfig
 import com.dispatch.driver.core.database.CapabilityStore
 import com.dispatch.driver.core.database.DispatchDatabase
 import com.dispatch.driver.core.database.StatusOutbox
@@ -29,8 +34,19 @@ object AppModule {
     @Provides @Singleton
     fun outbox(database: DispatchDatabase): StatusOutbox = StatusOutbox(database)
 
+    /** ADR-0011: a biz-kit session from native sign-in, sealed by a Keystore key. */
     @Provides @Singleton
-    fun session(): SessionProvider = SignedOutSession
+    fun authSession(@ApplicationContext context: Context): AuthSession {
+        val config = SignInConfig(BuildConfig.AUTH_BASE_URL, BuildConfig.AUTH_PROVIDER, "${BuildConfig.APPLICATION_ID}:/oauth2redirect")
+        val vault = SealedPrefsVault(context.getSharedPreferences("auth", Context.MODE_PRIVATE), AesGcmSealer.keystore())
+        return AuthSession(config, AuthApi(config.authBaseUrl), vault)
+    }
+
+    @Provides
+    fun session(auth: AuthSession): SessionProvider = auth
+
+    @Provides @Singleton
+    fun signIn(auth: AuthSession, capabilities: CapabilityProvider, sync: SyncRequester): SignInFlow = SignInFlow(auth, capabilities, sync)
 
     @Provides @Singleton
     fun client(session: SessionProvider): DispatchClient = DispatchClient.create(BuildConfig.API_BASE_URL, session)

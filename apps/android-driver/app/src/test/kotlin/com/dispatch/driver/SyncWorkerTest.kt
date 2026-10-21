@@ -3,6 +3,7 @@ package com.dispatch.driver
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.Data
 import androidx.work.ListenableWorker
 import androidx.work.NetworkType
 import androidx.work.WorkerFactory
@@ -31,8 +32,9 @@ class SyncWorkerTest {
     @After
     fun close() = database.close()
 
-    private fun worker(transport: StatusTransport) =
+    private fun worker(input: Data = Data.EMPTY, transport: StatusTransport) =
         TestListenableWorkerBuilder<SyncWorker>(context)
+            .setInputData(input)
             .setWorkerFactory(object : WorkerFactory() {
                 override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
                     SyncWorker(appContext, workerParameters, outbox, transport)
@@ -54,6 +56,16 @@ class SyncWorkerTest {
         val result = worker { d, _ -> SubmitResult.Stored(CurrentStatus(d.status, "PARTICIPANT", d.occurredAt)) }.doWork()
 
         assertEquals(ListenableWorker.Result.success(), result)
+    }
+
+    @Test
+    fun `a sync requested after sign-in sends what the refused session deferred, at once`() = runTest {
+        outbox.declare("AT_PICKUP", null, "ra-1")
+        outbox.sync { _, _ -> SubmitResult.Problem(401, "UNAUTHENTICATED", null) }
+        val stored = StatusTransport { d, _ -> SubmitResult.Stored(CurrentStatus(d.status, "PARTICIPANT", d.occurredAt)) }
+
+        assertEquals("deferred: nothing due yet", ListenableWorker.Result.retry(), worker(transport = stored).doWork())
+        assertEquals(ListenableWorker.Result.success(), worker(SyncWorker.RETRY_NOW, stored).doWork())
     }
 
     @Test
