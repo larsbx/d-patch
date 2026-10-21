@@ -29,9 +29,8 @@ import java.io.IOException
 class DispatchClient internal constructor(private val api: DispatchApi, private val session: SessionProvider? = null) : StatusTransport {
 
     override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult {
-        val token = session?.accessToken()
-        if (session != null && (token == null ||
-                (declaration.subject != null && declaration.subject != session.subject()))) {
+        val token = session?.accessTokenFor(declaration.subject)
+        if (session != null && token == null) {
             return SubmitResult.Problem(401, "SESSION_REQUIRED", "Sign in as the person who queued this declaration.")
         }
         return call(

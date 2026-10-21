@@ -40,6 +40,8 @@ class NativeSessionTest {
         val restarted = NativeSession(prefs, server.url("/").toString())
         assertEquals("account", restarted.subject())
         assertEquals("local-session", restarted.accessToken())
+        assertEquals("local-session", restarted.accessTokenFor("account"))
+        assertNull(restarted.accessTokenFor("another-account"))
         assertEquals("BizKit", restarted.authorizationScheme())
         assertNull(prefs.getString("pkce", null))
         prefs.edit().putLong("expires", 0).commit()

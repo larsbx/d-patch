@@ -42,7 +42,11 @@ class NativeSession(
     override fun ownerSubject(): String? = subject()
     override fun visibleRoleAssignmentId(): String? = selectedRoleAssignmentId()
     override fun authorizationScheme(): String = "BizKit"
-    override suspend fun accessToken(): String? = if (preferences.getLong("expires", 0) > System.currentTimeMillis())
+    override suspend fun accessToken(): String? = synchronized(this) { liveToken() }
+    override suspend fun accessTokenFor(owner: String?): String? = synchronized(this) {
+        if (owner != null && owner != subject()) null else liveToken()
+    }
+    private fun liveToken(): String? = if (preferences.getLong("expires", 0) > System.currentTimeMillis())
         preferences.getString("token", null) else null
 
     suspend fun beginSignIn(): String {
@@ -64,15 +68,21 @@ class NativeSession(
         val response = request("v1/mobile/token", JSONObject().put("code", uri.getQueryParameter("code"))
             .put("code_verifier", verifier), false)
         require(response.getString("token_type") == "BizKit")
-        check(preferences.edit().remove("pkce").remove("state").remove("role")
-            .putString("token", response.getString("access_token"))
-            .putString("subject", response.getString("subject"))
-            .putString("principal", response.getString("principal"))
-            .putLong("expires", response.getLong("expires_at")).commit())
-        revision.value++
+        synchronized(this) {
+            check(preferences.edit().remove("pkce").remove("state").remove("role")
+                .putString("token", response.getString("access_token"))
+                .putString("subject", response.getString("subject"))
+                .putString("principal", response.getString("principal"))
+                .putLong("expires", response.getLong("expires_at")).commit())
+            revision.value++
+        }
     }
 
-    fun chooseRole(id: String) { check(preferences.edit().putString("role", id).commit()); revision.value++ }
+    fun chooseRole(id: String) {
+        synchronized(this) {
+            check(preferences.edit().putString("role", id).commit()); revision.value++
+        }
+    }
     private fun keySlot(): String = "key:${subject() ?: error("Sign in first")}"
     private fun key(): Ed25519PrivateKeyParameters {
         val slot = keySlot()
@@ -118,17 +128,19 @@ class NativeSession(
 
     fun deviceReady(): Boolean = selectedRoleAssignmentId()?.let { preferences.contains(keySlot() + ":device") } ?: false
 
-    override fun sign(declaration: StatusDeclaration, roleAssignmentId: String): StatusDeclaration {
+    override fun sign(declaration: StatusDeclaration, roleAssignmentId: String): StatusDeclaration = synchronized(this) {
         require(roleAssignmentId == selectedRoleAssignmentId()) { "Role changed; declare again" }
         val device = preferences.getString(keySlot() + ":device", null) ?: error("Enrol this device first")
         val payload = declaration.copy(deviceId = device, subject = subject(), deviceSignature = null)
-        return payload.copy(deviceSignature = encode(sign(StatusSigningBytes.encode(payload, roleAssignmentId), key())))
+        payload.copy(deviceSignature = encode(sign(StatusSigningBytes.encode(payload, roleAssignmentId), key())))
     }
 
     suspend fun signOut() {
         try { request("v1/mobile/session", null, method = "DELETE") } finally {
-            check(preferences.edit().remove("token").remove("expires").remove("subject").remove("principal").remove("role").commit())
-            revision.value++
+            synchronized(this) {
+                check(preferences.edit().remove("token").remove("expires").remove("subject").remove("principal").remove("role").commit())
+                revision.value++
+            }
         }
     }
 
