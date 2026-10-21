@@ -35,7 +35,7 @@ class DeviceRegistrationTest {
         tenantId = "tenant-1",
         participantId = "participant-1",
         roleAssignmentId = "ra-1",
-        role = RoleSummary("DRIVER", "Driver", 1),
+        role = RoleSummary("COURIER", "Courier", 1),
         capabilities = emptyList(),
         features = emptySet(),
         statusOptions = emptyList(),
