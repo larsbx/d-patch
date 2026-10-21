@@ -33,7 +33,7 @@ jobs:
         with:
           repository: larsbx/biz-kit
           # Paired backend PR #57; immutable source for the actual server lane.
-          ref: e0e9692e5d864d91110b25db3dc8bded7f01df08
+          ref: 1c3ebe75085d1e953d5846a53dc801acceaa6dd5
           path: biz-kit
       - uses: erlef/setup-beam@v1
         with: {elixir-version: "1.19.6", otp-version: "28.3.3"}
