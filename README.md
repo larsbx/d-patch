@@ -107,7 +107,7 @@ snapshot `make up` and the existing gates still run against.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. **Remaining:** Android sign-in through `BizKit.Identity`, device keys through biz-kit's enrolment, the exit-criterion end-to-end runs against biz-kit |
+| 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. Android sign-in through biz-kit (until sign-out) and self-registered device keys; end-to-end runs against biz-kit for 1 (status), 13 and 16. **Remaining:** the surfaces scenarios 14, 15 and 17–19 need (below) |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -188,14 +188,34 @@ the platform's canonical form. Dispatch records a signed declaration as
 `DEVICE_AUTHENTICATED`. The key is sealed under an Android Keystore key, like
 the session; it is not hardware-bound.
 
+The exit-criterion scenarios whose surfaces exist run end to end against
+biz-kit's stack, online and after an offline interval (`e2e/README.md`): 1's
+status half, 13 and 16 in Chromium and the field app's protocol, and the
+installed app on an emulator in CI. The first runs found four defects that
+biz-kit's own suite could not see, now fixed there: no portal page opened its
+stream (Datastar's expressions need `unsafe-eval`, which §26.1's CSP rightly
+refuses), every real `EventSource` was refused with a 406, a refused
+declaration under an `Idempotency-Key` answered 500, and `/auth`'s login cookie
+was `Secure` over dev's plain HTTP.
+
 ### Next (Slice 1 remainder)
 
-Each of these reuses biz-kit rather than building it here (ADR-0010):
+Each of these is a surface biz-kit's dispatch does not have yet, so its
+scenario has nothing to run against (ADR-0010):
 
-1. **Exit-criterion end-to-end runs** (tests 1, 13–19, online and after an
-   offline interval) against biz-kit rather than `central/`.
-2. Later, when dispatch's roles become ledger grants: read grants from
+1. **A second role profile outside tests** (scenario 14). `Courier` compiles
+   only in dispatch's test environment; seeding a second profile in the dev
+   stack lets the app and portal show it reuses every resource unbranched.
+2. **Administration of assignments** (scenario 15): grant and revoke through
+   the portal or `/v1`, by an `ADMIN` who still sees no operational page. The
+   e2e fixture stands in for this today.
+3. **Partner actions** (scenarios 17–19): pickup and delivery readiness,
+   window and instruction proposals that stay proposals, proof references, and
+   the broker's contracted-loads view. `/partner/stops/:id` is read-only.
+4. Later, when dispatch's roles become ledger grants: read grants from
    biz-kit's change feed and retire the capability document.
+
+Scenario 1's "starts assignment sharing" is Slice 2's (consented location).
 
 ## Contributing
 
