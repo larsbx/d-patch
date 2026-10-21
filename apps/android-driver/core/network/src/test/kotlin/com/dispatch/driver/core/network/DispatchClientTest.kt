@@ -91,12 +91,17 @@ class DispatchClientTest {
     }
 
     @Test
-    fun `no session means no Authorization header, and the server's 401 comes back`() = runTest {
+    fun `no session keeps the declaration local and asks for sign in`() = runTest {
         token = null
-        server.enqueue(problem(401, "UNAUTHENTICATED"))
-
         assertEquals(401, (client.submit(declaration, "ra-1") as SubmitResult.Problem).httpStatus)
-        assertNull(server.takeRequest().getHeader("Authorization"))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `another account cannot deliver the original owner's signed declaration`() = runTest {
+        val result = client.submit(declaration.copy(subject = "another-account", deviceSignature = "retained-proof"), "ra-1")
+        assertEquals(401, (result as SubmitResult.Problem).httpStatus)
+        assertEquals(0, server.requestCount)
     }
 
     @Test

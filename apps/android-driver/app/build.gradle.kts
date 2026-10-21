@@ -124,6 +124,12 @@ dependencies {
     testImplementation(libs.kotlinx.serialization.json)
 }
 
+tasks.withType<Test>().configureEach {
+    listOf("DISPATCH_E2E_URL", "DISPATCH_E2E_CONTROL_KEY").forEach { name ->
+        providers.environmentVariable(name).orNull?.let { environment(name, it) }
+    }
+}
+
 // A release without its deployment's key and API, or with the development key,
 // would verify documents anyone with a checkout can sign. Fail the build instead.
 val checkReleaseConfiguration by tasks.registering {

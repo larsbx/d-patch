@@ -29,6 +29,7 @@ class StatusOutbox(
     private val database: DispatchDatabase,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newEventId: () -> String = { UuidV7.generate().toString() },
+    private val signer: com.dispatch.driver.core.model.status.DeviceSigner? = null,
 ) {
     private val dao = database.outbox()
 
@@ -43,7 +44,7 @@ class StatusOutbox(
                 occurredAt = Instant.ofEpochMilli(now).toString(),
                 note = note?.takeIf { it.isNotBlank() },
                 deviceSequence = sequence,
-            )
+            ).let { signer?.sign(it, roleAssignmentId) ?: it }
             dao.insert(
                 PendingEventEntity(
                     kind = PendingKind.STATUS.name,
@@ -59,7 +60,7 @@ class StatusOutbox(
     }
 
     /**
-     * Sends every due event, oldest sequence first, once.
+     * Sends this account's eligible events in sequence order, once.
      *
      * A rejection settles its event and the loop moves on: one bad declaration
      * must not hold the rest hostage. An unanswered or transient failure defers
@@ -67,8 +68,11 @@ class StatusOutbox(
      * network.
      */
     suspend fun sync(transport: StatusTransport): SyncOutcome {
-        for (event in dao.due(clock())) {
+        for (event in dao.due(Long.MAX_VALUE)) {
             val declaration = StatusDeclaration.fromCanonicalJson(event.canonicalJson)
+            if (signer != null && declaration.subject != signer.ownerSubject()) continue
+            // Never let a newly queued higher sequence overtake a deferred one.
+            if (event.nextAttemptAt > clock()) break
             when (val disposition = Disposition.of(transport.submit(declaration, event.roleAssignmentId))) {
                 is Disposition.Acknowledge -> acknowledge(event, disposition.current)
                 is Disposition.Reject -> dao.reject(event.localId, disposition.code, disposition.correctiveAction)
@@ -78,16 +82,27 @@ class StatusOutbox(
                 }
             }
         }
-        return dao.earliestPendingAttempt()?.let(SyncOutcome::RetryAt) ?: SyncOutcome.Drained
+        val next = dao.due(Long.MAX_VALUE).firstOrNull { event ->
+            signer == null || StatusDeclaration.fromCanonicalJson(event.canonicalJson).subject == signer.ownerSubject()
+        }?.nextAttemptAt
+        return next?.let(SyncOutcome::RetryAt) ?: SyncOutcome.Drained
     }
 
     /** What the status screen renders: the server's view plus everything local. */
     fun view(): Flow<OutboxView> =
-        dao.observeDriverState().combine(dao.observeEvents()) { state, events ->
+        combine(dao.observeDriverState(), dao.observeEvents(), signer?.changes ?: kotlinx.coroutines.flow.flowOf(Unit)) { state, events, _ ->
+            val visible = state?.takeIf {
+                signer == null || (kotlinx.serialization.json.Json.parseToJsonElement(it.json)
+                    .let { value -> value as kotlinx.serialization.json.JsonObject }
+                    .let { value -> value["outbox_subject"] == kotlinx.serialization.json.JsonPrimitive(signer.ownerSubject()) &&
+                        value["outbox_role"] == kotlinx.serialization.json.JsonPrimitive(signer.visibleRoleAssignmentId()) })
+            }
             OutboxView(
-                acknowledged = state?.let { json.decodeFromString(CurrentStatus.serializer(), it.json) },
-                acknowledgedAt = state?.fetchedAt,
-                events = events.map { it.toEntry() },
+                acknowledged = visible?.let { json.decodeFromString(CurrentStatus.serializer(), it.json) },
+                acknowledgedAt = visible?.fetchedAt,
+                events = events.filter { event -> signer == null ||
+                    (StatusDeclaration.fromCanonicalJson(event.canonicalJson).subject == signer.ownerSubject() &&
+                        event.roleAssignmentId == signer.visibleRoleAssignmentId()) }.map { it.toEntry() },
             )
         }
 
@@ -99,7 +114,13 @@ class StatusOutbox(
             // over a retry's newer server truth.
             dao.putDriverState(
                 CachedDriverStateEntity(
-                    json = json.encodeToString(CurrentStatus.serializer(), current),
+                    json = kotlinx.serialization.json.JsonObject(
+                        (kotlinx.serialization.json.Json.parseToJsonElement(json.encodeToString(CurrentStatus.serializer(), current))
+                            as kotlinx.serialization.json.JsonObject).toMap() + mapOf(
+                            "outbox_subject" to kotlinx.serialization.json.JsonPrimitive(StatusDeclaration.fromCanonicalJson(event.canonicalJson).subject),
+                            "outbox_role" to kotlinx.serialization.json.JsonPrimitive(event.roleAssignmentId),
+                        ),
+                    ).toString(),
                     serverVersion = (dao.driverState()?.serverVersion ?: 0) + 1,
                     fetchedAt = clock(),
                 ),
@@ -133,7 +154,7 @@ class StatusOutbox(
 }
 
 sealed interface SyncOutcome {
-    /** Nothing left pending. */
+    /** Nothing for the active account is pending; other accounts remain stored. */
     data object Drained : SyncOutcome
 
     /** Something is still pending; the earliest may be retried at [epochMillis]. */

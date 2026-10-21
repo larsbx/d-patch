@@ -23,6 +23,7 @@ internal interface DispatchApi {
         @Header("X-Role-Assignment-ID") roleAssignmentId: String,
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: RequestBody,
+        @Header("Authorization") authorization: String? = null,
     ): Response<ResponseBody>
 
     @GET("v1/role-capabilities")

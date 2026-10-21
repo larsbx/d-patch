@@ -40,7 +40,10 @@ dependencies {
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.security.crypto)
     implementation(libs.okhttp)
+    implementation(libs.bouncycastle.prov)
 
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.okhttp.mockwebserver)
 }

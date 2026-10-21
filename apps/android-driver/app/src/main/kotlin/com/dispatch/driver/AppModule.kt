@@ -27,10 +27,14 @@ object AppModule {
     fun database(@ApplicationContext context: Context): DispatchDatabase = DispatchDatabase.open(context)
 
     @Provides @Singleton
-    fun outbox(database: DispatchDatabase): StatusOutbox = StatusOutbox(database)
+    fun outbox(database: DispatchDatabase, session: com.dispatch.driver.core.auth.NativeSession): StatusOutbox = StatusOutbox(database, signer = session)
 
     @Provides @Singleton
-    fun session(): SessionProvider = SignedOutSession
+    fun nativeSession(@ApplicationContext context: Context): com.dispatch.driver.core.auth.NativeSession =
+        com.dispatch.driver.core.auth.NativeSession.create(context, BuildConfig.API_BASE_URL)
+
+    @Provides @Singleton
+    fun session(session: com.dispatch.driver.core.auth.NativeSession): SessionProvider = session
 
     @Provides @Singleton
     fun client(session: SessionProvider): DispatchClient = DispatchClient.create(BuildConfig.API_BASE_URL, session)

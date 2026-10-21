@@ -26,10 +26,15 @@ import java.io.IOException
  * (`Disposition`); this class only reports faithfully which one it was, and
  * never turns "no answer" into "refused" or the reverse.
  */
-class DispatchClient internal constructor(private val api: DispatchApi) : StatusTransport {
+class DispatchClient internal constructor(private val api: DispatchApi, private val session: SessionProvider? = null) : StatusTransport {
 
-    override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult =
-        call(
+    override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult {
+        val token = session?.accessToken()
+        if (session != null && (token == null ||
+                (declaration.subject != null && declaration.subject != session.subject()))) {
+            return SubmitResult.Problem(401, "SESSION_REQUIRED", "Sign in as the person who queued this declaration.")
+        }
+        return call(
             request = {
                 api.declareStatus(
                     roleAssignmentId = roleAssignmentId,
@@ -37,12 +42,15 @@ class DispatchClient internal constructor(private val api: DispatchApi) : Status
                     // client-chosen identity, so it is the natural key.
                     idempotencyKey = declaration.eventId,
                     body = declaration.toCanonicalJson().toRequestBody(JSON),
+                    authorization = token?.let { "${session?.authorizationScheme()} $it" },
                 )
             },
             onSuccess = { SubmitResult.Stored(json.decodeFromString(StoredBody.serializer(), it).currentStatus) },
             onProblem = { status, problem -> SubmitResult.Problem(status, problem?.code, problem?.detail) },
             onUnreachable = { SubmitResult.Unreachable },
         )
+
+    }
 
     /** `GET /v1/role-capabilities`: the signed document, unverified — the caller verifies. */
     suspend fun capabilityDocument(roleAssignmentId: String?): Fetch<SignedDocument> =
@@ -106,14 +114,14 @@ class DispatchClient internal constructor(private val api: DispatchApi) : Status
                     val token = runBlocking { session.accessToken() }
                     chain.proceed(
                         chain.request().newBuilder()
-                            .apply { if (token != null) header("Authorization", "Bearer $token") }
+                            .apply { if (token != null && chain.request().header("Authorization") == null) header("Authorization", "${session.authorizationScheme()} $token") }
                             .header("Accept", "application/json")
                             .build(),
                     )
                 })
                 .build()
             val retrofit = Retrofit.Builder().baseUrl(retrofitBaseUrl(baseUrl)).client(authenticated).build()
-            return DispatchClient(retrofit.create(DispatchApi::class.java))
+            return DispatchClient(retrofit.create(DispatchApi::class.java), session)
         }
     }
 }

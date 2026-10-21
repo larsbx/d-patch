@@ -1,0 +1,52 @@
+name: Slice 1 cross-repository acceptance
+on:
+  pull_request:
+    paths: ["apps/android-driver/**", "contracts/biz-kit-dispatch.openapi.json", "scripts/run-slice1-acceptance.sh", ".github/workflows/slice1-acceptance.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dispatch_mobile_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MIX_ENV: test
+      DATABASE_URL: ecto://postgres:postgres@localhost:5432/dispatch_mobile_test
+      EVENTSTORE_USERNAME: postgres
+      EVENTSTORE_PASSWORD: postgres
+      BIZ_KIT_DIR: ${{ github.workspace }}/biz-kit
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: client}
+      - uses: actions/checkout@v4
+        with:
+          repository: larsbx/biz-kit
+          # Paired backend PR #57; immutable source for the actual server lane.
+          ref: e0e9692e5d864d91110b25db3dc8bded7f01df08
+          path: biz-kit
+      - uses: erlef/setup-beam@v1
+        with: {elixir-version: "1.19.6", otp-version: "28.3.3"}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "21"}
+      - uses: gradle/actions/setup-gradle@v4
+      - run: mix deps.get
+        working-directory: biz-kit
+      - run: scripts/run-slice1-acceptance.sh
+        working-directory: client
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: slice1-android-acceptance
+          path: client/apps/android-driver/app/build/reports/tests/testDebugUnitTest/

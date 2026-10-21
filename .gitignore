@@ -37,3 +37,6 @@ e2e/playwright-report/
 .DS_Store
 .idea/
 .vscode/
+
+# Kotlin compiler sessions and error reports are local build state.
+/apps/android-driver/.kotlin/

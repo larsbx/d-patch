@@ -27,6 +27,8 @@ data class StatusDeclaration(
     @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("assignment_id") val assignmentId: String? = null,
     @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("device_id") val deviceId: String? = null,
     @SerialName("device_sequence") val deviceSequence: Long,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val subject: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("device_signature") val deviceSignature: String? = null,
 ) {
     fun toCanonicalJson(): String = json.encodeToString(serializer(), this)
 

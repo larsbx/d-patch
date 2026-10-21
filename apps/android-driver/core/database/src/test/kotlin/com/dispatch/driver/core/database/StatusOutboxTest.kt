@@ -122,15 +122,17 @@ class StatusOutboxTest {
         val server = Server { SubmitResult.Unreachable }
 
         // One attempt, then the pass stops: LOADING would meet the same network.
-        assertEquals(SyncOutcome.RetryAt(now), outbox.sync(server))
+        assertEquals(SyncOutcome.RetryAt(now + 30_000), outbox.sync(server))
         assertEquals(listOf("AT_PICKUP"), server.received.map { it.first.status })
 
-        // AT_PICKUP is backing off, so only LOADING is due.
+        // A later declaration must not overtake the deferred device sequence.
         server.received.clear()
         outbox.sync(server)
-        assertEquals(listOf("LOADING"), server.received.map { it.first.status })
-
-        assertEquals(listOf(1, 1), events().map { it.attemptCount })
+        assertTrue(server.received.isEmpty())
+        assertEquals(listOf(0, 1), events().map { it.attemptCount })
+        now += 30_000
+        assertEquals(SyncOutcome.RetryAt(now + 60_000), outbox.sync(server))
+        assertEquals(listOf(0, 2), events().map { it.attemptCount })
         assertEquals(30_000L, StatusOutbox.backoffMillis(1))
         assertEquals(60_000L, StatusOutbox.backoffMillis(2))
         assertEquals(30 * 60_000L, StatusOutbox.backoffMillis(50))
@@ -149,23 +151,17 @@ class StatusOutboxTest {
     }
 
     @Test
-    fun `the latest server answer wins, even for a retried lower-sequence event`() = runTest {
+    fun `a retry records the latest server status declared elsewhere`() = runTest {
         outbox.declare("AT_PICKUP", null, "ra-1")
-        outbox.declare("LOADING", null, "ra-1")
+        outbox.sync(Server { SubmitResult.Unreachable })
+        assertNull(outbox.view().first().acknowledged)
 
-        // AT_PICKUP fails and backs off; LOADING goes through meanwhile.
-        var first = true
-        outbox.sync(Server { d -> if (first) SubmitResult.Unreachable.also { first = false } else stored(d) })
-        outbox.sync(Server(::stored))
-        assertEquals("LOADING", outbox.view().first().acknowledged?.value)
-
-        // Meanwhile a newer status was recorded elsewhere (another handset, the
-        // portal). The AT_PICKUP retry's answer carries that newer truth, and
-        // its lower device sequence must not discard it.
+        // Another handset or the portal declares a newer status while this
+        // device is offline. Its retry must render that server truth, rather
+        // than echoing the older declaration it just uploaded.
         now += StatusOutbox.backoffMillis(1)
         outbox.sync(Server { SubmitResult.Stored(CurrentStatus("DELAYED", "PARTICIPANT", "2026-09-24T12:00:00Z")) })
-
-        assertTrue(events().all { it.state == PendingState.ACKNOWLEDGED })
+        assertEquals(PendingState.ACKNOWLEDGED, events().single().state)
         assertEquals("DELAYED", outbox.view().first().acknowledged?.value)
     }
 
@@ -200,4 +196,44 @@ class StatusOutboxTest {
         assertEquals(listOf(1L, 2L, 3L), server.received.map { it.first.deviceSequence })
         assertEquals("LOADING", outbox.view().first().acknowledged?.value)
     }
+    @Test fun `a higher sequence never overtakes an older event waiting for backoff`() = runTest {
+        outbox.declare("AT_PICKUP", null, "ra-1")
+        outbox.sync(Server { SubmitResult.Unreachable })
+        outbox.declare("LOADING", null, "ra-1")
+        val server = Server(::stored)
+        outbox.sync(server)
+        assertTrue(server.received.isEmpty())
+        now += 30_000
+        outbox.sync(server)
+        assertEquals(listOf(1L, 2L), server.received.map { it.first.deviceSequence })
+    }
+
+    @Test fun `signed events remain owned across sign out account switch and restart`() = runTest {
+        var owner: String? = "alice"
+        val signer = object : com.dispatch.driver.core.model.status.DeviceSigner {
+            override fun ownerSubject() = owner
+            override fun visibleRoleAssignmentId() = "role"
+            override fun sign(declaration: StatusDeclaration, roleAssignmentId: String) =
+                declaration.copy(subject = owner, deviceId = "device", deviceSignature = "immutable-signature")
+        }
+        val signed = StatusOutbox(database, clock = { now }, signer = signer)
+        signed.declare("AT_PICKUP", null, "role")
+        val original = database.outbox().observeEvents().first().single().canonicalJson
+        owner = "bob"
+        val server = Server(::stored)
+        signed.sync(server)
+        assertTrue(server.received.isEmpty())
+        assertTrue(signed.view().first().events.isEmpty())
+        owner = null
+        signed.sync(server)
+        assertTrue(server.received.isEmpty())
+        owner = "alice"
+        val restarted = StatusOutbox(database, clock = { now }, signer = signer)
+        restarted.sync(server)
+        assertEquals(original, server.received.single().first.toCanonicalJson())
+        assertEquals(PendingState.ACKNOWLEDGED, restarted.view().first().events.single().state)
+        owner = "bob"
+        assertNull(restarted.view().first().acknowledged)
+    }
+
 }

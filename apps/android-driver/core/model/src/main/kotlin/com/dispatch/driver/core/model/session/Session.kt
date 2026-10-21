@@ -11,7 +11,10 @@ interface SessionProvider {
     /** A current access token, or null when the participant must sign in. */
     suspend fun accessToken(): String?
 
-    /** The verified OIDC subject of the signed-in participant, or null. */
+    /** Existing OIDC callers remain bearer clients; native sessions use BizKit. */
+    fun authorizationScheme(): String = "Bearer"
+
+    /** The stable Dispatch account subject confirmed by the authenticated backend, or null. */
     fun subject(): String?
 
     /** The role assignment the participant chose to act under, if any. */
