@@ -21,6 +21,9 @@ import java.time.Instant
 sealed interface StatusUiState {
     data object Loading : StatusUiState
 
+    /** No session, or the server no longer accepts it: signing in is the way on. */
+    data object SignInRequired : StatusUiState
+
     /** The status surface is not offered; [message] says why. */
     data class NotOffered(val message: String) : StatusUiState
 
@@ -59,7 +62,7 @@ object StatusPresenter {
 
     fun present(capabilities: CapabilityState, outbox: OutboxView): StatusUiState = when (capabilities) {
         CapabilityState.Loading -> StatusUiState.Loading
-        CapabilityState.SignedOut -> StatusUiState.NotOffered("Sign in to declare your status.")
+        CapabilityState.SignedOut -> StatusUiState.SignInRequired
         is CapabilityState.Unavailable -> StatusUiState.NotOffered(capabilities.message)
         is CapabilityState.Ready -> ready(capabilities.document, capabilities.stale, outbox)
     }

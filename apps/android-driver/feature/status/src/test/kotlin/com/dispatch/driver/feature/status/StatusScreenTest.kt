@@ -28,13 +28,25 @@ class StatusScreenTest {
     val compose = createComposeRule()
 
     private val declared = mutableListOf<Pair<String, String?>>()
+    private var signIns = 0
 
     private fun show(state: StatusUiState, error: String? = null) = compose.setContent {
-        StatusScreen(state, error, onDeclare = { v, n -> declared += v to n; true }, onRefresh = {})
+        StatusScreen(state, error, onDeclare = { v, n -> declared += v to n; true }, onRefresh = {}, onSignIn = { signIns++ })
     }
 
     private fun ready(current: DisplayedStatus? = null, attention: List<OutboxEntry> = emptyList(), stale: Boolean = false) =
         StatusUiState.Ready(document().statusOptions, current, attention, "ra-1", stale)
+
+    @Test
+    fun `signed out, the screen offers sign-in and nothing to declare`() {
+        show(StatusUiState.SignInRequired)
+
+        compose.onNodeWithText("Sign in to declare your status.").assertIsDisplayed()
+        compose.onNodeWithTag("sign-in").performClick()
+
+        assertEquals(1, signIns)
+        assertEquals(0, compose.onAllNodes(hasTestTag("status-option-AT_PICKUP")).fetchSemanticsNodes().size)
+    }
 
     @Test
     fun `offers exactly the document's statuses, and a one-tap choice declares at once`() {

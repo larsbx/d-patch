@@ -24,12 +24,25 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:supportsRtl="true">
 
+        <!--
+          singleTask: the sign-in redirect (ADR-0011) returns to this activity
+          rather than stacking another. The filter matches the scheme alone,
+          since Android ignores a path without a host; SignInConfig.read checks
+          the path and the state, and ignores whatever else arrives.
+        -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}" />
             </intent-filter>
         </activity>
 

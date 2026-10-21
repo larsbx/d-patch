@@ -34,10 +34,10 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
-fun StatusRoute(viewModel: StatusViewModel = hiltViewModel()) {
+fun StatusRoute(onSignIn: () -> Unit, viewModel: StatusViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
-    StatusScreen(state, error, onDeclare = viewModel::declare, onRefresh = viewModel::refreshCapabilities)
+    StatusScreen(state, error, onDeclare = viewModel::declare, onRefresh = viewModel::refreshCapabilities, onSignIn = onSignIn)
 }
 
 /**
@@ -52,6 +52,7 @@ fun StatusScreen(
     error: String?,
     onDeclare: (value: String, note: String?) -> Boolean,
     onRefresh: () -> Unit,
+    onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -60,6 +61,10 @@ fun StatusScreen(
     ) {
         when (state) {
             StatusUiState.Loading -> Text("Loading your role…")
+            StatusUiState.SignInRequired -> {
+                Text("Sign in to declare your status.")
+                Button(onClick = onSignIn, modifier = Modifier.testTag("sign-in")) { Text("Sign in") }
+            }
             is StatusUiState.NotOffered -> {
                 Text(state.message, modifier = Modifier.testTag("status-not-offered"))
                 OutlinedButton(onClick = onRefresh) { Text("Try again") }

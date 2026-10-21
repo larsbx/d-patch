@@ -20,6 +20,11 @@ val developmentCapabilityKey: String =
 val releaseCapabilityKey: String? = providers.gradleProperty("dispatch.capabilityPublicKey").orNull?.trim()
 val releaseApiBaseUrl: String? = providers.gradleProperty("dispatch.apiBaseUrl").orNull
 
+// ADR-0011: sign-in goes through biz-kit's `/auth` (SpruceGoose), which is not
+// the dispatch API's host. The provider is the path segment biz-kit routes on.
+val authBaseUrl: String? = providers.gradleProperty("dispatch.authBaseUrl").orNull
+val authProvider: String = providers.gradleProperty("dispatch.authProvider").orNull ?: "workos"
+
 fun String.asBuildConfigString() = "\"" + replace("\n", "\\n") + "\""
 
 android {
@@ -52,6 +57,8 @@ android {
         release {
             buildConfigField("String", "API_BASE_URL", (releaseApiBaseUrl ?: "").asBuildConfigString())
             buildConfigField("String", "CAPABILITY_PUBLIC_KEY", (releaseCapabilityKey ?: "").asBuildConfigString())
+            buildConfigField("String", "AUTH_BASE_URL", (authBaseUrl ?: "").asBuildConfigString())
+            buildConfigField("String", "AUTH_PROVIDER", authProvider.asBuildConfigString())
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -60,6 +67,9 @@ android {
             // The Android emulator's address for the host running `make up`.
             buildConfigField("String", "API_BASE_URL", "http://10.0.2.2:4000/".asBuildConfigString())
             buildConfigField("String", "CAPABILITY_PUBLIC_KEY", developmentCapabilityKey.asBuildConfigString())
+            // SpruceGoose on the host, started with SPRUCE_GOOSE_MCP_ENABLED=true MCP_PORT=4001.
+            buildConfigField("String", "AUTH_BASE_URL", (authBaseUrl ?: "http://10.0.2.2:4001/").asBuildConfigString())
+            buildConfigField("String", "AUTH_PROVIDER", authProvider.asBuildConfigString())
             isMinifyEnabled = false
         }
     }
@@ -107,6 +117,7 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
 
@@ -130,8 +141,10 @@ val checkReleaseConfiguration by tasks.registering {
     val key = releaseCapabilityKey
     val url = releaseApiBaseUrl
     val development = developmentCapabilityKey
+    val auth = authBaseUrl
     doLast {
         check(!url.isNullOrBlank() && url.startsWith("https://")) { "Set dispatch.apiBaseUrl to the HTTPS API base URL." }
+        check(!auth.isNullOrBlank() && auth.startsWith("https://")) { "Set dispatch.authBaseUrl to biz-kit's HTTPS sign-in base URL (ADR-0011)." }
         check(!key.isNullOrBlank()) { "Set dispatch.capabilityPublicKey to the deployment's base64url Ed25519 capability key (ADR-0009)." }
         check(key != development) { "The development capability key cannot be pinned in a release build (ADR-0009)." }
     }

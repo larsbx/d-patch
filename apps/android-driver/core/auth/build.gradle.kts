@@ -1,10 +1,11 @@
-// OIDC Authorization Code with PKCE (Section 23.1) and the installation key
-// that signs offline events. Section 25.6 keeps BiometricPrompt results
-// labelled SYSTEM_BIOMETRIC and never as a face match.
+// Sign-in through biz-kit (ADR-0011: RFC 8252 with PKCE, Section 23.1) and, to
+// come, the installation key that signs offline events. Section 25.6 keeps
+// BiometricPrompt results labelled SYSTEM_BIOMETRIC and never as a face match.
 
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -36,11 +37,16 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
-    implementation(projects.core.model)
+    // `AuthSession` is a `SessionProvider`.
+    api(projects.core.model)
     implementation(libs.androidx.biometric)
-    implementation(libs.androidx.security.crypto)
-    implementation(libs.okhttp)
+    // In `AuthApi`'s constructor.
+    api(libs.okhttp)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.okhttp.mockwebserver)
 }

@@ -29,7 +29,7 @@ class StatusPresenterTest {
     @Test
     fun `without a verified document nothing is offered`() {
         assertEquals(StatusUiState.Loading, StatusPresenter.present(CapabilityState.Loading, empty))
-        assertTrue(StatusPresenter.present(CapabilityState.SignedOut, empty) is StatusUiState.NotOffered)
+        assertEquals(StatusUiState.SignInRequired, StatusPresenter.present(CapabilityState.SignedOut, empty))
         assertEquals(StatusUiState.NotOffered("offline"), StatusPresenter.present(CapabilityState.Unavailable("offline"), empty))
     }
 
