@@ -64,12 +64,20 @@ class ContractConformanceTest {
     }
 
     @Test
+    fun `a device registration is a valid DeviceRegistrationRequest`() {
+        assertNamesExist(DeviceRegistrationRequest.serializer(), "DeviceRegistrationRequest")
+        val missing = required("DeviceRegistrationRequest") - fields(DeviceRegistrationRequest.serializer()).filterValues { it }.keys
+        assertTrue("client does not always send $missing", missing.isEmpty())
+    }
+
+    @Test
     fun `responses read only what the contract promises`() {
         assertResponse(StoredBody.serializer(), "StatusEventResponse")
         assertResponse(CurrentStatus.serializer(), "CurrentStatus")
         assertResponse(SignedDocument.serializer(), "CapabilityDocumentResponse")
         assertResponse(AssignmentsBody.serializer(), "RoleAssignmentList")
         assertResponse(RoleAssignmentChoice.serializer(), "RoleAssignmentChoice")
+        assertResponse(RegisteredDevice.serializer(), "DeviceRegistration")
         assertNamesExist(ProblemBody.serializer(), "Problem")
     }
 
@@ -82,6 +90,7 @@ class ContractConformanceTest {
 
         assertTrue(headers("/v1/me/status-events", "post").containsAll(setOf("idempotency-key", "x-role-assignment-id")))
         assertTrue(headers("/v1/role-capabilities", "get").contains("x-role-assignment-id"))
+        assertTrue(headers("/v1/me/devices", "post").contains("x-role-assignment-id"))
         assertTrue(paths["/v1/me/role-assignments"]!!.jsonObject.containsKey("get"))
     }
 }

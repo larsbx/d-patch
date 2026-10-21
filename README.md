@@ -181,17 +181,19 @@ the stored capability document keeps working offline. ADR-0011 is proposed: the
 one-hour session without refresh replaces §23.1's 15-minute token and rotating
 refresh token, and needs approval.
 
+Each installation registers its own Ed25519 key with biz-kit once signed in
+(ADR-0012), and signs every declaration as it is queued, offline or not, over
+the platform's canonical form. Dispatch records a signed declaration as
+`DEVICE_AUTHENTICATED`. The key is sealed under an Android Keystore key, like
+the session; it is not hardware-bound.
+
 ### Next (Slice 1 remainder)
 
 Each of these reuses biz-kit rather than building it here (ADR-0010):
 
-1. **Device keys and signed events** — an Ed25519 key per installation,
-   enrolled through `CoopSubstrate.Enrolments` (signed request, governance
-   approval), replacing `devices.public_key` and §25.2's `device_signature`
-   design here.
-2. **Exit-criterion end-to-end runs** (tests 1, 13–19, online and after an
+1. **Exit-criterion end-to-end runs** (tests 1, 13–19, online and after an
    offline interval) against biz-kit rather than `central/`.
-3. Later, when dispatch's roles become ledger grants: read grants from
+2. Later, when dispatch's roles become ledger grants: read grants from
    biz-kit's change feed and retire the capability document.
 
 ## Contributing

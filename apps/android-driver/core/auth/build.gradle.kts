@@ -49,4 +49,6 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.okhttp.mockwebserver)
+    // Checks a device signature independently of the code that made it.
+    testImplementation(libs.bouncycastle.prov)
 }

@@ -81,6 +81,22 @@ class DispatchClientTest {
     }
 
     @Test
+    fun `a device registers its key under the selected assignment, and learns its ID`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"device_id":"d-1","installation_id":"i-1"}"""))
+        server.enqueue(problem(409, "INSTALLATION_CONFLICT"))
+
+        val registration = DeviceRegistrationRequest(installationId = "i-1", publicKey = "pk", proof = "pr")
+        assertEquals(Fetch.Ok(RegisteredDevice("d-1", "i-1")), client.registerDevice("ra-7", registration))
+        assertEquals(Fetch.Problem(409, "INSTALLATION_CONFLICT", "detail"), client.registerDevice("ra-7", registration))
+
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/v1/me/devices", request.path)
+        assertEquals("ra-7", request.getHeader("X-Role-Assignment-ID"))
+        assertEquals("""{"installation_id":"i-1","public_key":"pk","proof":"pr"}""", request.body.readUtf8())
+    }
+
+    @Test
     fun `a problem is reported with its stable code and detail`() = runTest {
         server.enqueue(problem(422, "VALIDATION_FAILED", "note is required"))
 

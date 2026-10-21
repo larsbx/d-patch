@@ -2,6 +2,7 @@ package com.dispatch.driver.core.database
 
 import androidx.room.withTransaction
 import com.dispatch.driver.core.model.UuidV7
+import com.dispatch.driver.core.model.device.DeviceSigner
 import com.dispatch.driver.core.model.status.CurrentStatus
 import com.dispatch.driver.core.model.status.Disposition
 import com.dispatch.driver.core.model.status.StatusDeclaration
@@ -29,6 +30,7 @@ class StatusOutbox(
     private val database: DispatchDatabase,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newEventId: () -> String = { UuidV7.generate().toString() },
+    private val signer: DeviceSigner = DeviceSigner { null },
 ) {
     private val dao = database.outbox()
 
@@ -37,13 +39,15 @@ class StatusOutbox(
         val now = clock()
         return database.withTransaction {
             val sequence = dao.maxDeviceSequence() + 1
+            // Signed now, offline or not (Section 23.1): the queued body is what
+            // is sent on every retry, so it is what the device vouches for.
             val declaration = StatusDeclaration(
                 eventId = newEventId(),
                 status = status,
                 occurredAt = Instant.ofEpochMilli(now).toString(),
                 note = note?.takeIf { it.isNotBlank() },
                 deviceSequence = sequence,
-            )
+            ).let { unsigned -> signer.current()?.let(unsigned::signedBy) ?: unsigned }
             dao.insert(
                 PendingEventEntity(
                     kind = PendingKind.STATUS.name,

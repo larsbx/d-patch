@@ -57,4 +57,6 @@ dependencies {
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    // Checks a queued signature independently of the code that made it.
+    testImplementation(libs.bouncycastle.prov)
 }

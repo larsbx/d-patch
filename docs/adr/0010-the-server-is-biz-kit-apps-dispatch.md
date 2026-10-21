@@ -35,9 +35,14 @@ and enforced on the client by `ContractConformanceTest`. `contracts/openapi.json
 remains `central/`'s.
 
 Future client work should use biz-kit's existing machinery rather than build
-it again here: device keys and enrolment (`CoopSubstrate.Enrolments`, Ed25519
-per-device keys approved by governance), sign-in (`BizKit.Identity`), and
-grants read from the change feed.
+it again here: sign-in (`BizKit.Identity`, ADR-0011), the platform's
+canonical form and Ed25519 signatures (ADR-0009, ADR-0012), and grants read
+from the change feed.
+
+*Amended 2026-10-21 by ADR-0012:* device keys were to be enrolled through
+`CoopSubstrate.Enrolments`; they are self-registered in dispatch instead,
+because that service's roles, scope and per-device approval do not fit a
+field device.
 
 ## Consequences
 

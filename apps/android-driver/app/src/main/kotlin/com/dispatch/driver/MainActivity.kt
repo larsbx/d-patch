@@ -24,6 +24,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var signIn: SignInFlow
 
+    @Inject lateinit var deviceRegistration: DeviceRegistration
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // A recreated activity has already handled the intent it was started with.
@@ -39,6 +41,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        deviceRegistration.retry()
     }
 
     override fun onNewIntent(intent: Intent) {

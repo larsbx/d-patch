@@ -5,7 +5,9 @@ import androidx.work.WorkManager
 import com.dispatch.driver.core.auth.AesGcmSealer
 import com.dispatch.driver.core.auth.AuthApi
 import com.dispatch.driver.core.auth.AuthSession
+import com.dispatch.driver.core.auth.DeviceKeys
 import com.dispatch.driver.core.auth.SealedPrefsVault
+import com.dispatch.driver.core.auth.Sealer
 import com.dispatch.driver.core.auth.SignInConfig
 import com.dispatch.driver.core.database.CapabilityStore
 import com.dispatch.driver.core.database.DispatchDatabase
@@ -32,15 +34,29 @@ object AppModule {
     fun database(@ApplicationContext context: Context): DispatchDatabase = DispatchDatabase.open(context)
 
     @Provides @Singleton
-    fun outbox(database: DispatchDatabase): StatusOutbox = StatusOutbox(database)
+    fun outbox(database: DispatchDatabase, keys: DeviceKeys): StatusOutbox = StatusOutbox(database, signer = keys)
+
+    /** Section 23.1's Keystore-backed storage, for the session and the device key alike. */
+    @Provides @Singleton
+    fun sealer(): Sealer = AesGcmSealer.keystore()
 
     /** ADR-0011: a biz-kit session from native sign-in, sealed by a Keystore key. */
     @Provides @Singleton
-    fun authSession(@ApplicationContext context: Context): AuthSession {
+    fun authSession(@ApplicationContext context: Context, sealer: Sealer): AuthSession {
         val config = SignInConfig(BuildConfig.AUTH_BASE_URL, BuildConfig.AUTH_PROVIDER, "${BuildConfig.APPLICATION_ID}:/oauth2redirect")
-        val vault = SealedPrefsVault(context.getSharedPreferences("auth", Context.MODE_PRIVATE), AesGcmSealer.keystore())
+        val vault = SealedPrefsVault(context.getSharedPreferences("auth", Context.MODE_PRIVATE), sealer)
         return AuthSession(config, AuthApi(config.authBaseUrl), vault)
     }
+
+    /** ADR-0012: this installation's Ed25519 key, sealed beside the session. */
+    @Provides @Singleton
+    fun deviceKeys(@ApplicationContext context: Context, sealer: Sealer, auth: AuthSession): DeviceKeys {
+        return DeviceKeys(DeviceKeys.store(context.getSharedPreferences("auth", Context.MODE_PRIVATE), sealer), auth)
+    }
+
+    @Provides @Singleton
+    fun deviceRegistration(keys: DeviceKeys, capabilities: CapabilityProvider, client: DispatchClient): DeviceRegistration =
+        DeviceRegistration(keys, capabilities, client::registerDevice)
 
     @Provides
     fun session(auth: AuthSession): SessionProvider = auth
