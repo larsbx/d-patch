@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Section 25.2's `SyncWorker`: drains the outbox once per run.
  *
- * Success only when nothing is left pending. Anything still queued — deferred
+ * Success when this account has nothing left pending. Anything for it still queued — deferred
  * by backoff, or declared while this run was in flight — is a retry, so no
  * event waits for the next declaration to be sent.
  */

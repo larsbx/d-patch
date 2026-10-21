@@ -51,8 +51,12 @@ class StatusViewModel @Inject constructor(
         if (_error.value != null) return false
 
         viewModelScope.launch {
-            outbox.declare(value, note?.trim(), ready.document.roleAssignmentId)
-            sync.requestSync()
+            try {
+                outbox.declare(value, note?.trim(), ready.document.roleAssignmentId)
+                sync.requestSync()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: IllegalStateException) { _error.value = error.message ?: "Enrol this device before declaring." }
+            catch (error: IllegalArgumentException) { _error.value = error.message ?: "Refresh your role and try again." }
         }
         return true
     }

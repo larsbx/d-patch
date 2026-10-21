@@ -50,7 +50,7 @@ The app has no health endpoint. Its equivalents are observable states:
 | Status submitted offline does not appear | Expected: it is queued and syncs once, with a monotonic device sequence (§25.2) |
 | Approval control unavailable | Driving mode is active; §25.5 forbids completing an approval while driving |
 | A rejected event shows a corrective action | Server rejection marks the local item `REJECTED` and states the exact fix (§25.2) |
-| "Sign in to declare your status" | No session. `core:auth` (§23.1) is not built yet, so this is currently always the case |
+| "Sign in to declare your status" | No current session. Use Sign in or Sign in again; queued declarations remain local until authenticated. |
 | Status controls absent for a role | The capability document does not list `status`, or lists it without `status.declare.self`; the screen never decides from the role |
 | "Offline: showing the choices your role had…" | The stored capability document is past its expiry and could not be refreshed; it is still verified (ADR-0009) |
 | Release build fails in `checkReleaseConfiguration` | `dispatch.apiBaseUrl` or `dispatch.capabilityPublicKey` is unset, not HTTPS, or is the development key |
@@ -85,3 +85,11 @@ infra:face             containment boundary for a future FaceVerifier (§25.6)
 
 `infra:*` modules are the vendor-containment boundary. A Google or face-provider
 type that escapes one fails the `lint` gate's invariant check.
+
+## Identity and device enrolment
+
+`core:auth/NativeSession` implements the BizKit.Identity browser handoff with
+S256 PKCE, encrypted session/Ed25519-key storage, role selection and the existing
+governance enrolment protocol. The composition root always injects it into the
+Room outbox. See [the Slice 1 runbook](../../docs/runbooks/android-slice1-integration.md)
+for configuration, operator approval and actual backend acceptance.

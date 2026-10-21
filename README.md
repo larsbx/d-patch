@@ -107,7 +107,7 @@ snapshot `make up` and the existing gates still run against.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. **Remaining:** Android sign-in through `BizKit.Identity`, device keys through biz-kit's enrolment, the exit-criterion end-to-end runs against biz-kit |
+| 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. **implemented in the paired Slice 1 integration:** Android sign-in through `BizKit.Identity`, governance-approved device keys and signed submissions. **Acceptance pending:** actual backend/Android lane and deployed-provider/device run |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -171,24 +171,26 @@ allocated and the pending row written in one transaction, the screen updates
 from that row, and `SyncWorker` (network required, charging not) sends due
 events oldest first under the assignment each was declared under. A rejection
 is final and shows its corrective action; anything else keeps the event
-queued. Android sign-in is not built yet, so the app currently reports itself
-signed out and offers nothing.
+queued. Sign-in now uses the existing `BizKit.Identity` provider and revocable
+sessions, through a browser handoff protected by PKCE. Device access uses
+`CoopSubstrate.Enrolments` proof of possession and administrator approval.
+Signed declarations retain their owner, role and key through offline retries.
 
-### Next (Slice 1 remainder)
+### Slice 1 integration and acceptance
 
-Each of these reuses biz-kit rather than building it here (ADR-0010):
+The Android client includes sign-in, explicit role selection, device enrolment
+and signed offline submissions. Configure the paired biz-kit adapter and its
+existing provider/ledger infrastructure as described in
+[the integration runbook](docs/runbooks/android-slice1-integration.md).
 
-1. **Sign-in** — `core:auth` against `BizKit.Identity` (WorkOS today). biz-kit
-   sessions are browser cookies, so a mobile flow that yields a bearer token
-   for `/v1` is new work there first.
-2. **Device keys and signed events** — an Ed25519 key per installation,
-   enrolled through `CoopSubstrate.Enrolments` (signed request, governance
-   approval), replacing `devices.public_key` and §25.2's `device_signature`
-   design here.
-3. **Exit-criterion end-to-end runs** (tests 1, 13–19, online and after an
-   offline interval) against biz-kit rather than `central/`.
-4. Later, when dispatch's roles become ledger grants: read grants from
-   biz-kit's change feed and retire the capability document.
+The cross-repository acceptance lane exercises the actual backend and Room
+outbox. A deterministic provider fixture is used in CI; a deployed WorkOS sign-in
+on an Android handset remains a separate acceptance check. Local checks and
+blocked environment-dependent runs are recorded in the paired PRs; implementation
+alone does not establish the Slice 1 exit criterion.
+
+Dispatch role-to-ledger grant projection remains later work; this integration
+continues to use the signed capability document and existing role policies.
 
 ## Contributing
 

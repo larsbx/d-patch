@@ -91,12 +91,43 @@ class DispatchClientTest {
     }
 
     @Test
-    fun `no session means no Authorization header, and the server's 401 comes back`() = runTest {
+    fun `no session keeps the declaration local and asks for sign in`() = runTest {
         token = null
-        server.enqueue(problem(401, "UNAUTHENTICATED"))
-
         assertEquals(401, (client.submit(declaration, "ra-1") as SubmitResult.Problem).httpStatus)
-        assertNull(server.takeRequest().getHeader("Authorization"))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `another account cannot deliver the original owner's signed declaration`() = runTest {
+        val result = client.submit(declaration.copy(subject = "another-account", deviceSignature = "retained-proof"), "ra-1")
+        assertEquals(401, (result as SubmitResult.Problem).httpStatus)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `an account switch after credential capture cannot replace the event owner's token`() = runTest {
+        var activeSubject = "subject-1"
+        val switching = object : SessionProvider {
+            override suspend fun accessToken() = "other-account-token"
+            override suspend fun accessTokenFor(owner: String?): String? {
+                assertEquals("subject-1", owner)
+                activeSubject = "subject-2" // another sign-in completes after the atomic capture
+                return "original-owner-token"
+            }
+            override fun subject() = activeSubject
+            override fun selectedRoleAssignmentId() = "ra-2"
+        }
+        val captured = DispatchClient.create(server.url("/").toString(), switching)
+        server.enqueue(MockResponse().setResponseCode(201).setBody(
+            """{"current_status":{"value":"DELAYED","source":"PARTICIPANT","role_key":"COURIER","occurred_at":"2026-09-24T10:00:00Z"}}""",
+        ))
+
+        val event = declaration.copy(subject = "subject-1", deviceSignature = "retained-proof")
+        assertEquals("DELAYED", (captured.submit(event, "ra-1") as SubmitResult.Stored).current.value)
+        val request = server.takeRequest()
+        assertEquals("Bearer original-owner-token", request.getHeader("Authorization"))
+        assertEquals("ra-1", request.getHeader("X-Role-Assignment-ID"))
+        assertEquals(event.toCanonicalJson(), request.body.readUtf8())
     }
 
     @Test

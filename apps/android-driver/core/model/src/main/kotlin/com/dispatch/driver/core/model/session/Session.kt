@@ -11,7 +11,16 @@ interface SessionProvider {
     /** A current access token, or null when the participant must sign in. */
     suspend fun accessToken(): String?
 
-    /** The verified OIDC subject of the signed-in participant, or null. */
+    /** Capture a credential for this declaration's owner. Mutable session stores
+     * override this to read the owner and token atomically across account changes.
+     */
+    suspend fun accessTokenFor(owner: String?): String? =
+        accessToken().takeIf { owner == null || owner == subject() }
+
+    /** Existing OIDC callers remain bearer clients; native sessions use BizKit. */
+    fun authorizationScheme(): String = "Bearer"
+
+    /** The stable Dispatch account subject confirmed by the authenticated backend, or null. */
     fun subject(): String?
 
     /** The role assignment the participant chose to act under, if any. */
