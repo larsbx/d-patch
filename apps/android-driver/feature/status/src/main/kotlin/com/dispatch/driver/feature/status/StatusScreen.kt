@@ -69,15 +69,20 @@ fun StatusScreen(
                 Text(state.message, modifier = Modifier.testTag("status-not-offered"))
                 OutlinedButton(onClick = onRefresh) { Text("Try again") }
             }
-            is StatusUiState.Ready -> Ready(state, error, onDeclare)
+            is StatusUiState.Ready -> Ready(state, error, onDeclare, onSignIn)
         }
     }
 }
 
 @Composable
-private fun Ready(state: StatusUiState.Ready, error: String?, onDeclare: (String, String?) -> Boolean) {
+private fun Ready(state: StatusUiState.Ready, error: String?, onDeclare: (String, String?) -> Boolean, onSignIn: () -> Unit) {
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     var note by rememberSaveable { mutableStateOf("") }
+
+    if (state.signInRequired) {
+        Text("Your sign-in has ended. You can keep declaring; updates are sent once you sign in again.")
+        Button(onClick = onSignIn, modifier = Modifier.testTag("sign-in")) { Text("Sign in") }
+    }
 
     if (state.capabilitiesStale) {
         Text(

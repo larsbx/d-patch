@@ -1,6 +1,9 @@
 package com.dispatch.driver.core.auth
 
 import android.content.Context
+import android.content.SharedPreferences
+import io.mockk.every
+import io.mockk.mockk
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -9,6 +12,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.IOException
 import javax.crypto.KeyGenerator
 
 /**
@@ -54,6 +58,18 @@ class VaultTest {
         assertEquals(record, SealedPrefsVault(prefs, sealer).read())
         val stored = prefs.all.values.joinToString()
         for (secret in listOf("s-1", "prn_1", record.pending!!.verifier)) assertFalse(secret in stored)
+    }
+
+    @Test
+    fun `a write the disk refuses is an error, not a silent loss`() {
+        val refusing = mockk<SharedPreferences> {
+            every { edit() } returns mockk {
+                every { putString(any(), any()) } returns this
+                every { commit() } returns false
+            }
+        }
+
+        assertThrows(IOException::class.java) { SealedPrefsVault(refusing, sealer).write(record) }
     }
 
     @Test

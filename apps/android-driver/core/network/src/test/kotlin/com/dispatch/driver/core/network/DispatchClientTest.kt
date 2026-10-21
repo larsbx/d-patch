@@ -4,6 +4,7 @@ import com.dispatch.driver.core.model.capability.SignedDocument
 import com.dispatch.driver.core.model.session.SessionProvider
 import com.dispatch.driver.core.model.status.StatusDeclaration
 import com.dispatch.driver.core.model.status.SubmitResult
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -18,11 +19,16 @@ class DispatchClientTest {
 
     private val server = MockWebServer().apply { start() }
     private var token: String? = "token-1"
+    private val rejections = mutableListOf<String?>()
 
     private val session = object : SessionProvider {
         override suspend fun accessToken() = token
         override fun subject() = "subject-1"
         override fun selectedRoleAssignmentId() = "ra-1"
+        override val signInRequired = MutableStateFlow(false)
+        override fun rejected(token: String?) {
+            rejections += token
+        }
     }
 
     private val client = DispatchClient.create(server.url("/").toString(), session)
@@ -60,6 +66,18 @@ class DispatchClientTest {
         assertEquals("ra-7", request.getHeader("X-Role-Assignment-ID"))
         assertEquals(declaration.eventId, request.getHeader("Idempotency-Key"))
         assertEquals(declaration.toCanonicalJson(), request.body.readUtf8())
+    }
+
+    @Test
+    fun `a 401 is reported against the token that was refused, and nothing else is`() = runTest {
+        server.enqueue(problem(401, "UNAUTHENTICATED"))
+        server.enqueue(problem(403, "ROLE_ASSIGNMENT_INVALID"))
+
+        client.submit(declaration, roleAssignmentId = "ra-7")
+        token = null
+        client.submit(declaration, roleAssignmentId = "ra-7")
+
+        assertEquals(listOf<String?>("token-1"), rejections)
     }
 
     @Test

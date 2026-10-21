@@ -30,19 +30,31 @@ rejected a second, long-lived credential until sessions are durable.
    private-use scheme, RFC 8252 §7.1), or with `error=access_denied`.
    `SignInConfig.read` accepts only that path with the state of the sign-in in
    progress; anything else any app could send is ignored and changes nothing.
+   Reading the redirect and spending the sign-in are one step, so a redirect
+   delivered twice is exchanged once.
 3. The code is exchanged at `POST /auth/token` with the verifier, then
    `GET /auth/me` names the principal, which is the `sub` capability documents
-   are bound to (ADR-0009). Both are spent before the exchange whatever it
-   answers, as biz-kit spends the code.
+   are bound to (ADR-0009). The sign-in is spent before the exchange whatever
+   it answers, as biz-kit spends the code.
 4. The session, its principal and expiry, and any sign-in in flight, are
    kept in one record sealed by AES-256-GCM under an Android Keystore key, in
    app-private preferences excluded from backup. A record that no longer
-   opens reads as signed out.
+   opens reads as signed out. A write the disk refuses changes nothing: a
+   sign-in whose verifier cannot be kept does not open the browser, and a
+   session that cannot be kept is not used. Forgetting (a spent sign-in,
+   sign-out) takes effect in memory even then.
 5. A session within 30 seconds of expiry is not sent. Dispatch answers `401`,
-   which keeps queued events queued (§25.2) and puts the status screen in its
-   sign-in state. The principal is kept until sign-out, so the stored
-   capability document still verifies offline.
-6. Sign-out forgets the session locally first, then ends it on biz-kit if
+   which keeps queued events queued (§25.2). Every `401` is reported to the
+   session (`SessionProvider.rejected`), and one answering the current token
+   turns `signInRequired` on: the status screen offers sign-in beside
+   everything it already showed, and declaring still queues. The principal is
+   kept until sign-out, so the stored capability document still verifies
+   offline.
+6. A sign-in reloads capabilities and sends queued events at once
+   (`SyncRequester.requestSyncNow`): their backoff was earned against the
+   refused session, so it is reset, and the sync replaces a WorkManager chain
+   sitting out its own backoff rather than queueing behind it.
+7. Sign-out forgets the session locally first, then ends it on biz-kit if
    reachable.
 
 **Replaced MUSTs.** The access token lives one hour, not fifteen minutes, and
@@ -90,15 +102,26 @@ durable and refreshable, `core:auth` adopts that and this deviation ends.
 - `AuthApiTest`: the token request on the wire; a non-bearer, zero-lifetime or
   unparseable grant is refused; no answer is not a refusal.
 - `AuthSessionTest`: the round trip, across a process death in the browser;
-  forged, replayed and denied redirects; failed exchanges; expiry; sign-out
-  online and offline.
+  forged, replayed and denied redirects; one exchange for a redirect delivered
+  twice at once (300 barrier-released rounds); failed exchanges; writes the
+  disk refuses; expiry and refusal turning `signInRequired` on, a stale
+  token's refusal not; sign-out online and offline.
 - `VaultTest`: sealing round-trips with fresh nonces, refuses tampering and
   foreign keys, stores nothing in the clear, and a record that no longer opens
   reads as signed out.
-- `SignInFlowTest`, `StatusScreenTest`: a session reloads capabilities and
-  sends what waited; signed out, the screen offers sign-in and nothing else.
+- `DispatchClientTest`: a `401` is reported against the token refused.
+- `StatusOutboxTest`, `SyncWorkerTest`, `SyncRequesterTest`: after sign-in,
+  deferred events are due at once and the sync replaces a backed-off chain.
+- `SignInFlowTest`, `StatusPresenterTest`, `StatusScreenTest`,
+  `StatusViewModelTest`: a session reloads capabilities and sends what waited
+  at once; signed out, the screen offers sign-in and nothing else; refused,
+  it offers sign-in and still lets the participant declare.
 - Mutations: removing the state check, the redirect match, the in-progress
   check, single use, the bearer check, expiry, the principal lookup, local
-  sign-out first, S256, or the unreadable-record fallback each fails a test.
+  sign-out first, S256, the unreadable-record fallback, the atomic redirect
+  read, keeping only what was written, the `commit` check, ignoring a stale
+  token's refusal, the client's `401` report, the backoff reset, the
+  `REPLACE` policy, or the sign-in prompt beside the status choices each
+  fails a test.
 - Not on the JVM: the Keystore key itself (Robolectric has none); the same
   sealing code is tested with a software key.

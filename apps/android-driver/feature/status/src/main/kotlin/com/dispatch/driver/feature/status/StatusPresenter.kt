@@ -33,6 +33,8 @@ sealed interface StatusUiState {
         val attention: List<OutboxEntry>,
         val roleAssignmentId: String,
         val capabilitiesStale: Boolean,
+        /** The server refused the session: offer sign-in, and keep everything else working. */
+        val signInRequired: Boolean = false,
     ) : StatusUiState
 }
 
@@ -60,14 +62,14 @@ sealed interface Freshness {
 
 object StatusPresenter {
 
-    fun present(capabilities: CapabilityState, outbox: OutboxView): StatusUiState = when (capabilities) {
+    fun present(capabilities: CapabilityState, outbox: OutboxView, signInRequired: Boolean = false): StatusUiState = when (capabilities) {
         CapabilityState.Loading -> StatusUiState.Loading
         CapabilityState.SignedOut -> StatusUiState.SignInRequired
         is CapabilityState.Unavailable -> StatusUiState.NotOffered(capabilities.message)
-        is CapabilityState.Ready -> ready(capabilities.document, capabilities.stale, outbox)
+        is CapabilityState.Ready -> ready(capabilities.document, capabilities.stale, outbox, signInRequired)
     }
 
-    private fun ready(document: CapabilityDocument, stale: Boolean, outbox: OutboxView): StatusUiState {
+    private fun ready(document: CapabilityDocument, stale: Boolean, outbox: OutboxView, signInRequired: Boolean): StatusUiState {
         if (!document.offers(Features.STATUS) || document.statusOptions.isEmpty()) {
             return StatusUiState.NotOffered("Your current role does not declare a status.")
         }
@@ -77,6 +79,7 @@ object StatusPresenter {
             attention = attention(outbox.events),
             roleAssignmentId = document.roleAssignmentId,
             capabilitiesStale = stale,
+            signInRequired = signInRequired,
         )
     }
 

@@ -34,8 +34,8 @@ class StatusScreenTest {
         StatusScreen(state, error, onDeclare = { v, n -> declared += v to n; true }, onRefresh = {}, onSignIn = { signIns++ })
     }
 
-    private fun ready(current: DisplayedStatus? = null, attention: List<OutboxEntry> = emptyList(), stale: Boolean = false) =
-        StatusUiState.Ready(document().statusOptions, current, attention, "ra-1", stale)
+    private fun ready(current: DisplayedStatus? = null, attention: List<OutboxEntry> = emptyList(), stale: Boolean = false, signInRequired: Boolean = false) =
+        StatusUiState.Ready(document().statusOptions, current, attention, "ra-1", stale, signInRequired)
 
     @Test
     fun `signed out, the screen offers sign-in and nothing to declare`() {
@@ -46,6 +46,24 @@ class StatusScreenTest {
 
         assertEquals(1, signIns)
         assertEquals(0, compose.onAllNodes(hasTestTag("status-option-AT_PICKUP")).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun `a refused session offers sign-in and still lets the participant declare`() {
+        show(ready(signInRequired = true))
+
+        compose.onNodeWithTag("sign-in").performClick()
+        compose.onNodeWithTag("status-option-AT_PICKUP").performClick()
+
+        assertEquals(1, signIns)
+        assertEquals(listOf("AT_PICKUP" to null), declared)
+    }
+
+    @Test
+    fun `a current session offers no sign-in`() {
+        show(ready())
+
+        assertEquals(0, compose.onAllNodes(hasTestTag("sign-in")).fetchSemanticsNodes().size)
     }
 
     @Test

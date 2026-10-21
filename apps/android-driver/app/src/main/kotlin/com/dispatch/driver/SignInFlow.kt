@@ -27,8 +27,9 @@ class SignInFlow(
     /** Why the last sign-in did not finish, if it did not. */
     val message: StateFlow<String?> = _message.asStateFlow()
 
-    /** The URL to open in the system browser. */
-    fun start(): String = session.begin()
+    /** The URL to open in the system browser, or null, with [message] set, when sign-in cannot start. */
+    fun start(): String? =
+        session.begin().also { if (it == null) _message.value = "Sign-in could not start. Free some storage and try again." }
 
     /**
      * Finishes the sign-in in the process's scope, not the activity's: the code
@@ -47,7 +48,7 @@ class SignInFlow(
             SignInOutcome.SignedIn -> {
                 _message.value = null
                 capabilities.refresh()
-                sync.requestSync()
+                sync.requestSyncNow()
             }
         }
     }

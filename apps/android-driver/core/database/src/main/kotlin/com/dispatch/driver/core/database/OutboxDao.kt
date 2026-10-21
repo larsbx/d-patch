@@ -33,6 +33,9 @@ interface OutboxDao {
     )
     suspend fun defer(localId: Long, nextAttemptAt: Long, reason: String?)
 
+    @Query("UPDATE pending_events SET next_attempt_at = :now, corrective_action = NULL WHERE state = 'PENDING' AND next_attempt_at > :now")
+    suspend fun makeDue(now: Long)
+
     @Query("SELECT * FROM pending_events ORDER BY device_sequence DESC")
     fun observeEvents(): Flow<List<PendingEventEntity>>
 

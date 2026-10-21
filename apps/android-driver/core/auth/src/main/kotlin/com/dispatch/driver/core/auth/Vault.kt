@@ -6,6 +6,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.io.IOException
 import java.security.KeyStore
 import java.util.Base64
 import javax.crypto.Cipher
@@ -22,6 +23,8 @@ data class AuthRecord(val session: SignedIn? = null, val pending: PendingSignIn?
 
 interface Vault {
     fun read(): AuthRecord
+
+    /** Throws [IOException] when [record] could not be stored. */
     fun write(record: AuthRecord)
 }
 
@@ -89,7 +92,7 @@ class SealedPrefsVault(private val prefs: SharedPreferences, private val sealer:
     @SuppressLint("ApplySharedPref")
     override fun write(record: AuthRecord) {
         val sealed = Base64.getEncoder().encodeToString(sealer.seal(json.encodeToString(AuthRecord.serializer(), record).encodeToByteArray()))
-        prefs.edit().putString(KEY, sealed).commit()
+        if (!prefs.edit().putString(KEY, sealed).commit()) throw IOException("The sign-in record could not be stored.")
     }
 
     internal companion object {

@@ -81,6 +81,13 @@ class StatusOutbox(
         return dao.earliestPendingAttempt()?.let(SyncOutcome::RetryAt) ?: SyncOutcome.Drained
     }
 
+    /**
+     * Makes every deferred event due now. For when the reason they waited is
+     * gone — a sign-in after the session was refused — so they need not sit
+     * out a backoff earned against the old one. Attempt counts are kept.
+     */
+    suspend fun retryNow() = dao.makeDue(clock())
+
     /** What the status screen renders: the server's view plus everything local. */
     fun view(): Flow<OutboxView> =
         dao.observeDriverState().combine(dao.observeEvents()) { state, events ->

@@ -47,7 +47,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /** RFC 8252 §6: the system browser, never a web view the app could read. */
-    private fun openSignIn() = startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(signIn.start())))
+    private fun openSignIn() {
+        signIn.start()?.let { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) }
+    }
 
     /** biz-kit's redirect arrives as a VIEW of the app's own scheme; anything else is not one. */
     private fun receive(intent: Intent) {

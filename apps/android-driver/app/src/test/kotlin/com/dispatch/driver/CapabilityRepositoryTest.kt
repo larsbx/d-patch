@@ -9,6 +9,7 @@ import com.dispatch.driver.core.model.capability.CapabilityState
 import com.dispatch.driver.core.model.capability.SignedDocument
 import com.dispatch.driver.core.model.session.SessionProvider
 import com.dispatch.driver.core.network.Fetch
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.After
@@ -42,6 +43,8 @@ class CapabilityRepositoryTest {
         override suspend fun accessToken() = "t"
         override fun subject() = subject
         override fun selectedRoleAssignmentId() = "0192a000-0000-7000-8000-000000000003"
+        override val signInRequired = MutableStateFlow(false)
+        override fun rejected(token: String?) = Unit
     }
 
     private var answer: Fetch<SignedDocument> = Fetch.Ok(token)

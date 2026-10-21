@@ -34,4 +34,10 @@ sealed interface CapabilityState {
  */
 fun interface SyncRequester {
     fun requestSync()
+
+    /**
+     * Sends everything queued now, backoff or not: what held it back is gone
+     * (a sign-in after the session was refused).
+     */
+    fun requestSyncNow() = requestSync()
 }
