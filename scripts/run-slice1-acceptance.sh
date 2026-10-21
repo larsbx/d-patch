@@ -20,7 +20,7 @@ mix run --no-halt test/acceptance/mobile_server.exs > "$backend_log" 2>&1 &
 backend_pid=$!
 ready=0
 for _ in $(seq 1 60); do
-  if rg -q SLICE1_ACCEPTANCE_READY "$backend_log"; then ready=1; break; fi
+  if grep -Fq SLICE1_ACCEPTANCE_READY "$backend_log"; then ready=1; break; fi
   if ! kill -0 "$backend_pid" 2>/dev/null; then break; fi
   sleep 1
 done
