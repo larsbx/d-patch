@@ -34,6 +34,13 @@ class AuthApiTest {
     }
 
     @Test
+    fun `a grant without expires_in lasts until signed out`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"access_token":"s-1","token_type":"Bearer"}"""))
+
+        assertEquals(AuthResult.Ok(Grant("s-1", expiresInSeconds = null)), api.exchange("c", "v", "r"))
+    }
+
+    @Test
     fun `a refused exchange, or a grant that is not a bearer session, is refused`() = runTest {
         server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":"invalid_grant"}"""))
         server.enqueue(MockResponse().setBody("""{"access_token":"s-1","token_type":"MAC","expires_in":3600}"""))

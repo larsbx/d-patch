@@ -13,8 +13,11 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
-/** A biz-kit session: the bearer token dispatch accepts. */
-data class Grant(val accessToken: String, val expiresInSeconds: Long)
+/**
+ * A biz-kit session: the bearer token dispatch accepts. biz-kit's native
+ * sessions last until signed out and carry no [expiresInSeconds] (ADR-0011).
+ */
+data class Grant(val accessToken: String, val expiresInSeconds: Long?)
 
 /** Every outcome is a value, and "no answer" is never mistaken for "refused". */
 sealed interface AuthResult<out T> {
@@ -45,7 +48,7 @@ class AuthApi(authBaseUrl: String, private val http: OkHttpClient = OkHttpClient
             ),
         ) { body ->
             json.decodeFromString(TokenBody.serializer(), body)
-                .takeIf { it.tokenType.equals("Bearer", ignoreCase = true) && it.expiresIn > 0 }
+                .takeIf { it.tokenType.equals("Bearer", ignoreCase = true) && (it.expiresIn == null || it.expiresIn > 0) }
                 ?.let { Grant(it.accessToken, it.expiresIn) }
         }
 
@@ -79,7 +82,7 @@ class AuthApi(authBaseUrl: String, private val http: OkHttpClient = OkHttpClient
     private data class TokenBody(
         @SerialName("access_token") val accessToken: String,
         @SerialName("token_type") val tokenType: String,
-        @SerialName("expires_in") val expiresIn: Long,
+        @SerialName("expires_in") val expiresIn: Long? = null,
     )
 
     @Serializable

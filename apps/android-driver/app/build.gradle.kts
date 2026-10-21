@@ -37,7 +37,8 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Hilt's test application, so instrumented tests get the app's own graph.
+        testInstrumentationRunner = "com.dispatch.driver.HiltTestRunner"
     }
 
     packaging {
@@ -135,6 +136,13 @@ dependencies {
     testImplementation(libs.kotlinx.serialization.json)
     // Checks a registration proof independently of the code that made it.
     testImplementation(libs.bouncycastle.prov)
+
+    // Against biz-kit's end-to-end stack on an emulator (src/androidTest).
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.hilt.android.testing)
+    androidTestImplementation(libs.work.testing)
+    kspAndroidTest(libs.hilt.compiler)
 }
 
 // A release without its deployment's key and API, or with the development key,

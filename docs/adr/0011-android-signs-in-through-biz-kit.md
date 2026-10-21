@@ -1,6 +1,6 @@
 # ADR-0011: Android signs in through biz-kit's native sign-in
 
-- **Status:** proposed — it replaces two §23.1 **MUST**s (token lifetime, refresh tokens) and needs approval
+- **Status:** accepted — it replaces two §23.1 **MUST**s (token lifetime, refresh tokens); the product owner decided on 2026-10-21 that the token is not revoked until the person signs out
 - **Date:** 2026-10-21
 - **Deciders:** platform engineering
 - **Specification sections:** §23.1, §25.1, §25.2
@@ -16,8 +16,10 @@ principal (`prn_…`), and gets a biz-kit session. biz-kit's native sign-in
 that session as a bearer token, and dispatch accepts it on `/v1`
 (`TOKEN_VERIFIER_ADAPTER=Dispatch.Identity.Tokens.BizKitSession`).
 
-That session lasts one hour by default and has no refresh token: biz-kit
-rejected a second, long-lived credential until sessions are durable.
+A browser's session lasts one hour. A native app's lasts until the person
+signs out: it has no time limit and is kept, by hash, in biz-kit's Postgres,
+so a restart does not end it (biz-kit's native sign-in note). There is no
+refresh token.
 
 ## Decision
 
@@ -43,8 +45,11 @@ rejected a second, long-lived credential until sessions are durable.
    sign-in whose verifier cannot be kept does not open the browser, and a
    session that cannot be kept is not used. Forgetting (a spent sign-in,
    sign-out) takes effect in memory even then.
-5. A session within 30 seconds of expiry is not sent. Dispatch answers `401`,
-   which keeps queued events queued (§25.2). Every `401` is reported to the
+5. The token is sent until the person signs out. The grant carries no
+   `expires_in`; one that did would not be sent within 30 seconds of its
+   expiry. When the server ends a session early (the principal's sessions
+   revoked, the identity unbound), dispatch answers `401`, which keeps queued
+   events queued (§25.2). Every `401` is reported to the
    session (`SessionProvider.rejected`), and one answering the current token
    turns `signInRequired` on: the status screen offers sign-in beside
    everything it already showed, and declaring still queues. The principal is
@@ -57,20 +62,20 @@ rejected a second, long-lived credential until sessions are durable.
 7. Sign-out forgets the session locally first, then ends it on biz-kit if
    reachable.
 
-**Replaced MUSTs.** The access token lives one hour, not fifteen minutes, and
-there is no refresh token: on expiry the person signs in again through the
-browser, which with a live provider session is a redirect, not a password
-prompt. Revocation is immediate regardless (logout, revoking the principal's
-sessions, or removing the identity binding ends it in dispatch at once, since
-biz-kit re-resolves the session on every use). When biz-kit sessions become
-durable and refreshable, `core:auth` adopts that and this deviation ends.
+**Replaced MUSTs.** The access token lasts until the person signs out, not
+fifteen minutes, and there is no refresh token: one credential, kept sealed
+on the device. Revocation is immediate regardless (logout, revoking the
+principal's sessions, or removing the identity binding ends it in dispatch at
+once, since biz-kit re-resolves the session on every use).
 
 ## Consequences
 
 ### Accepted
 
-- A shift longer than the session needs a re-sign-in. Work queued meanwhile is
-  kept and sent after it.
+- A stolen token works until the person signs out or an administrator revokes
+  the principal's sessions. Its value is bounded by the sealed storage, the
+  per-request re-resolution, and the device key that signs each declaration
+  (ADR-0012).
 - biz-kit's `/auth` (SpruceGoose's web endpoint) binds loopback only, by a
   governed decision there. A deployment must front `/auth/*/native/login`,
   `/auth/*/callback`, `/auth/token`, `/auth/me` and `/auth/logout` publicly for

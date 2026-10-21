@@ -151,7 +151,23 @@ class AuthSessionTest {
     }
 
     @Test
-    fun `an expired session sends no token but keeps its subject for offline work`() = runTest {
+    fun `a session without an expiry is sent until the person signs out`() = runTest {
+        val session = session()
+        server.enqueue(MockResponse().setBody("""{"access_token":"s-1","token_type":"Bearer"}"""))
+        server.enqueue(MockResponse().setBody("""{"principal":"prn_1"}"""))
+        session.complete(redirect(session.started(), "code" to "c-1"))
+
+        clock.now = clock.now.plusSeconds(365L * 86_400)
+        assertEquals("s-1", session.accessToken())
+        assertEquals("s-1", session().accessToken())
+
+        server.enqueue(MockResponse().setResponseCode(204))
+        session.signOut()
+        assertNull(session.accessToken())
+    }
+
+    @Test
+    fun `a session the server limits still lapses at its expiry`() = runTest {
         val session = session()
         granted(expiresIn = 3600)
         session.complete(redirect(session.started(), "code" to "c-1"))

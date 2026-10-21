@@ -1,0 +1,55 @@
+# biz-kit's end-to-end stack (its scripts/e2e-stack.sh), started in the
+# background for this job: dispatch on :4000, SpruceGoose's /auth on :4001.
+# The job provides PostgreSQL with PostGIS on :5432 (user and password
+# "postgres"), because a composite action cannot declare a service.
+#
+# biz-kit is checked out at the branch of the same name when one exists, so a
+# change spanning both repositories is tested together; otherwise at main.
+
+name: biz-kit stack
+description: Check out biz-kit and serve its end-to-end stack
+inputs:
+  public-auth-url:
+    description: Where a browser reaches /auth (the emulator sees the host as 10.0.2.2)
+    default: http://127.0.0.1:4001
+outputs:
+  dir:
+    description: Where biz-kit is checked out
+    value: ${{ github.workspace }}/biz-kit
+runs:
+  using: composite
+  steps:
+    - id: ref
+      shell: bash
+      env: { BRANCH: "${{ github.head_ref || github.ref_name }}" }
+      run: |
+        if git ls-remote --exit-code --heads https://github.com/larsbx/biz-kit "$BRANCH" >/dev/null; then
+          echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+        else
+          echo "ref=main" >> "$GITHUB_OUTPUT"
+        fi
+    - uses: actions/checkout@v4
+      with: { repository: larsbx/biz-kit, ref: "${{ steps.ref.outputs.ref }}", path: biz-kit }
+    - uses: erlef/setup-beam@v1
+      with: { otp-version: "27.3.4", elixir-version: "1.19.0" }
+    - uses: actions/cache@v4
+      with:
+        path: |
+          biz-kit/deps
+          biz-kit/_build
+        key: biz-kit-dev-${{ runner.os }}-${{ hashFiles('biz-kit/mix.lock') }}
+    - name: serve
+      shell: bash
+      working-directory: biz-kit
+      env:
+        PGPASSWORD: postgres
+        SPRUCE_GOOSE_PUBLIC_URL: ${{ inputs.public-auth-url }}
+      run: |
+        nohup scripts/e2e-stack.sh > "$RUNNER_TEMP/biz-kit-stack.log" 2>&1 &
+        for _ in $(seq 1 120); do
+          if curl -sf -o /dev/null http://127.0.0.1:4000/health/live && curl -s -o /dev/null http://127.0.0.1:4001/auth/me; then
+            echo "biz-kit stack is up (ref ${{ steps.ref.outputs.ref }})"; exit 0
+          fi
+          sleep 5
+        done
+        tail -100 "$RUNNER_TEMP/biz-kit-stack.log"; exit 1
