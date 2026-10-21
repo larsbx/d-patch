@@ -90,6 +90,19 @@ class StatusPresenterTest {
     }
 
     @Test
+    fun `a rejection stops asking for attention once a newer declaration supersedes it`() {
+        val rejected = entry(1, "AT_PICKUP", "2026-09-24T10:00:00Z", PendingState.REJECTED, "Choose your role again")
+        val older = entry(0, "EN_ROUTE_PICKUP", "2026-09-24T09:00:00Z", PendingState.REJECTED, "Declare again")
+        val newer = entry(2, "LOADING", "2026-09-24T10:05:00Z", PendingState.PENDING)
+        val waiting = entry(3, "DELAYED", "2026-09-24T10:06:00Z", PendingState.PENDING, "Sign in again to send queued updates.")
+
+        // Newest first, as the outbox lists them.
+        assertEquals(listOf(rejected), ready(empty.copy(events = listOf(rejected, older))).attention)
+        assertEquals(emptyList<OutboxEntry>(), ready(empty.copy(events = listOf(newer, rejected, older))).attention)
+        assertEquals(listOf(waiting), ready(empty.copy(events = listOf(waiting, newer, rejected))).attention)
+    }
+
+    @Test
     fun `a stale document is still used, and says so`() {
         assertTrue(ready(stale = true).capabilitiesStale)
     }
