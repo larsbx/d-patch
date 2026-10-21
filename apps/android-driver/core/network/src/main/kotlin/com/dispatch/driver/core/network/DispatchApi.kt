@@ -32,4 +32,10 @@ internal interface DispatchApi {
 
     @GET("v1/me/role-assignments")
     suspend fun roleAssignments(): Response<ResponseBody>
+
+    @POST("v1/me/devices")
+    suspend fun registerDevice(
+        @Header("X-Role-Assignment-ID") roleAssignmentId: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
 }

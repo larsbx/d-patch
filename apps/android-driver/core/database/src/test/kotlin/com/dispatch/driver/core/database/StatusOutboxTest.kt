@@ -2,12 +2,19 @@ package com.dispatch.driver.core.database
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.dispatch.driver.core.model.device.DeviceKey
+import com.dispatch.driver.core.model.device.DeviceStatements
+import com.dispatch.driver.core.model.device.SigningDevice
 import com.dispatch.driver.core.model.status.CurrentStatus
 import com.dispatch.driver.core.model.status.StatusDeclaration
 import com.dispatch.driver.core.model.status.StatusTransport
 import com.dispatch.driver.core.model.status.SubmitResult
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
+import org.bouncycastle.crypto.signers.Ed25519Signer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -15,6 +22,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.security.SecureRandom
+import java.util.Base64
 
 /**
  * Section 25.2 against a real Room database. Section 35 requires "Android
@@ -49,6 +58,31 @@ class StatusOutboxTest {
         SubmitResult.Stored(CurrentStatus(declaration.status, "PARTICIPANT", declaration.occurredAt))
 
     private suspend fun events() = outbox.view().first().events
+
+    @Test
+    fun `once the device is registered, each declaration is queued signed by it`() = runTest {
+        val key = DeviceKey.generate(SecureRandom())
+        var device: SigningDevice? = null
+        val signing = StatusOutbox(database, clock = { now }, newEventId = { "event-${++ids}" }, signer = { device })
+
+        signing.declare("AT_PICKUP", note = null, roleAssignmentId = "ra-1")
+        device = SigningDevice("device-1", key)
+        signing.declare("LOADING", note = "dock 4", roleAssignmentId = "ra-1")
+
+        val server = Server(::stored)
+        signing.sync(server)
+        val (unsigned, signed) = server.received.map { it.first }
+        assertNull("declared before registration", unsigned.deviceSignature)
+        assertEquals("device-1", signed.deviceId)
+        // The queued body is what was signed: a retry sends the same bytes.
+        val fields = Json.parseToJsonElement(signed.copy(deviceSignature = null).toCanonicalJson()).jsonObject
+        val signature = Base64.getUrlDecoder().decode(signed.deviceSignature)
+        assertTrue(Ed25519Signer().run {
+            init(false, Ed25519PublicKeyParameters(key.publicKey, 0))
+            DeviceStatements.event(fields).let { update(it, 0, it.size) }
+            verifySignature(signature)
+        })
+    }
 
     @Test
     fun `a declaration is queued at once with the next device sequence`() = runTest {

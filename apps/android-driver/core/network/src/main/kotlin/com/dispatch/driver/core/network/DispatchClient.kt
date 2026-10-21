@@ -62,6 +62,23 @@ class DispatchClient internal constructor(private val api: DispatchApi) : Status
             onUnreachable = { Fetch.Unreachable },
         )
 
+    /**
+     * `POST /v1/me/devices` (ADR-0012): registers this installation's key. A
+     * `200` (already registered) and a `201` both carry the device ID.
+     */
+    suspend fun registerDevice(roleAssignmentId: String, registration: DeviceRegistrationRequest): Fetch<RegisteredDevice> =
+        call(
+            request = {
+                api.registerDevice(
+                    roleAssignmentId = roleAssignmentId,
+                    body = json.encodeToString(DeviceRegistrationRequest.serializer(), registration).toRequestBody(JSON),
+                )
+            },
+            onSuccess = { Fetch.Ok(json.decodeFromString(RegisteredDevice.serializer(), it)) },
+            onProblem = { status, problem -> Fetch.Problem(status, problem?.code, problem?.detail) },
+            onUnreachable = { Fetch.Unreachable },
+        )
+
     private suspend fun <T> call(
         request: suspend () -> Response<ResponseBody>,
         onSuccess: (String) -> T,
@@ -128,6 +145,20 @@ sealed interface Fetch<out T> {
 
 @Serializable
 data class RoleAssignmentChoice(val id: String, val label: String)
+
+/** The body of `POST /v1/me/devices`; the key and proof are base64url. */
+@Serializable
+data class DeviceRegistrationRequest(
+    @SerialName("installation_id") val installationId: String,
+    @SerialName("public_key") val publicKey: String,
+    val proof: String,
+)
+
+@Serializable
+data class RegisteredDevice(
+    @SerialName("device_id") val deviceId: String,
+    @SerialName("installation_id") val installationId: String,
+)
 
 @Serializable
 internal data class StoredBody(@SerialName("current_status") val currentStatus: CurrentStatus)

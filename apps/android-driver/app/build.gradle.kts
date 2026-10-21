@@ -133,6 +133,8 @@ dependencies {
     testImplementation(libs.work.testing)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.kotlinx.serialization.json)
+    // Checks a registration proof independently of the code that made it.
+    testImplementation(libs.bouncycastle.prov)
 }
 
 // A release without its deployment's key and API, or with the development key,
