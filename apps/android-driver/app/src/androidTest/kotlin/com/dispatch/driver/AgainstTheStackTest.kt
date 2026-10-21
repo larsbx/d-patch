@@ -70,9 +70,9 @@ class AgainstTheStackTest {
         signIn.finish(browse(checkNotNull(signIn.start())))
         assertNull(signIn.message.value)
 
-        // ADR-0009: the document verified against the pinned development key.
+        // ADR-0009: the document verified against the pinned development key,
+        // and the app goes by its features, never its role key (Section 23.2).
         val document = withTimeout(30_000) { capabilities.state.filterIsInstance<CapabilityState.Ready>().first() }.document
-        assertEquals("DRIVER", document.role.key)
         assertTrue(document.offers("status"))
 
         // ADR-0012: the key sealed under the Keystore, registered with dispatch.
