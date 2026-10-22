@@ -42,7 +42,8 @@ import javax.inject.Inject
  *
  * The one stand-in is the system browser, which follows biz-kit's redirects
  * here; everything from the redirect back to the app on is the app's code.
- * Build with `-Pdispatch.authProvider=driver`, the stack's seeded driver.
+ * Build with `-Pdispatch.authProvider=driver` or `=courier`: either seeded
+ * field role, through the same code (scenario 14).
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
@@ -66,7 +67,7 @@ class AgainstTheStackTest {
     }
 
     @Test
-    fun aDriverSignsInRegistersTheDeviceAndWhatWasQueuedOfflineArrivesSigned() = runBlocking {
+    fun aFieldRoleSignsInRegistersTheDeviceAndWhatWasQueuedOfflineArrivesSigned() = runBlocking {
         signIn.finish(browse(checkNotNull(signIn.start())))
         assertNull(signIn.message.value)
 

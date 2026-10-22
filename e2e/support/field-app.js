@@ -11,9 +11,29 @@ import { authURL } from "./stack.js";
 
 const REDIRECT = "com.dispatch.driver:/oauth2redirect";
 
+// Each person's session, kept as the app keeps it: until sign-out (ADR-0011).
+// Signing in afresh for every test would also run into /auth's per-client
+// sign-in limit, which is right to refuse that.
+const sessions = new Map();
+
 export class FieldApp {
   static async open(baseURL, who) {
     return new FieldApp(await playwrightRequest.newContext({ baseURL }), who);
+  }
+
+  /** An app holding `who`'s session from earlier in the run, or a new one. */
+  static async signedIn(baseURL, who) {
+    const app = await FieldApp.open(baseURL, who);
+    const grant = sessions.get(who.provider);
+    if (grant) app.keep(grant);
+    else await app.signIn();
+    return app;
+  }
+
+  keep(grant) {
+    this.grant = grant;
+    this.token = grant.access_token;
+    sessions.set(this.who.provider, grant);
   }
 
   constructor(http, who) {
@@ -39,8 +59,7 @@ export class FieldApp {
     const token = await this.http.post(`${authURL}/auth/token`, {
       form: { grant_type: "authorization_code", code: back.searchParams.get("code"), code_verifier: verifier, redirect_uri: REDIRECT },
     });
-    this.grant = await token.json();
-    this.token = this.grant.access_token;
+    this.keep(await token.json());
     return this.grant;
   }
 
@@ -106,6 +125,7 @@ export class FieldApp {
   }
 
   async signOut() {
+    if (sessions.get(this.who.provider) === this.grant) sessions.delete(this.who.provider);
     return this.http.post(`${authURL}/auth/logout`, { headers: this.headers() });
   }
 }

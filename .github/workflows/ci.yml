@@ -231,11 +231,16 @@ jobs:
 
   # The installed app's own graph on an emulator against the same stack:
   # sign-in, the Keystore-sealed device key, and the outbox across airplane
-  # mode (app/src/androidTest). Hosted runners have KVM.
+  # mode (app/src/androidTest). Hosted runners have KVM. Once per field role:
+  # the same build, unbranched, for the courier (scenario 14) as the driver.
   android-e2e-biz-kit:
-    name: android-e2e-biz-kit
+    name: android-e2e-biz-kit (${{ matrix.person }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        person: [driver, courier]
     services:
       postgres:
         image: postgis/postgis:16-3.4
@@ -262,11 +267,11 @@ jobs:
           arch: x86_64
           disable-animations: true
           working-directory: apps/android-driver
-          script: ./gradlew :app:connectedDebugAndroidTest -Pdispatch.authProvider=driver --no-daemon
+          script: ./gradlew :app:connectedDebugAndroidTest -Pdispatch.authProvider=${{ matrix.person }} --no-daemon
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: android-e2e-biz-kit
+          name: android-e2e-biz-kit-${{ matrix.person }}
           path: |
             apps/android-driver/app/build/reports/androidTests/
             ${{ runner.temp }}/biz-kit-stack.log
