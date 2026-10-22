@@ -232,10 +232,17 @@ moment it was acquired, so one queued before revocation still arrives
 reported, with its accuracy and age, as an observation and never its
 coordinates. A reader without the relationship gets nothing.
 
+Cadence follows demand (ADR-0014). While a dispatcher who may see precise
+location (`operations.location.precise.read`, with the driver's consent
+active) has the driver's page open, the phone hears so on its own stream
+(`GET /v1/me/location-demand`) and samples every 3 s, uploading each at once;
+that dispatcher's page shows the live coordinates, patched in place. With no
+such viewer, the phone trickles: a sample every 2 minutes, uploaded every 10.
+
 Next, in order:
 
 1. **The Android foreground service and outbox** (§25.3): a persistent
-   `Stop sharing` notification, adaptive sampling, batches of 25 / 60 s, and
+   `Stop sharing` notification, the demand stream's two cadences, and
    synchronous cancellation on revocation; scenario 1's "starts assignment
    sharing" on the emulator.
 2. **Geocoder and router ports with Google adapters behind contract tests**,

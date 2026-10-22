@@ -65,6 +65,7 @@ key, and the outbox across airplane mode. Start the stack with
 | 15 — precise map and message content | — | — | Slices 2, 4 |
 | 2 — a GPS sample appears with accuracy and age; an unrelated broker gets nothing | ✅ (protocol) | — | `location.spec.js` |
 | Acceptance criterion 4 — revoking stops sharing, except what was acquired before | ✅ | ✅ | `location.spec.js` |
+| ADR-0014 — real time exactly while a precise reader watches; trickle otherwise; the stream ends with consent | ✅ (protocol) | — | `location.spec.js` |
 | 10 — geocoder, router and map adapters replaced independently | — | — | Slice 2, next |
 | 16 — a dispatcher loses the stream when the relationship ends | ✅ within one heartbeat | — | `slice1.spec.js` |
 | 17–19 — shipper, receiver, broker actions | — | — | pages are read-only; next |
