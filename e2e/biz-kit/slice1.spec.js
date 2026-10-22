@@ -4,11 +4,13 @@
 //
 // Not here, because their surfaces do not exist yet in biz-kit (see the
 // README's coverage table): 1's location sharing (Slice 2), 14's consent,
-// location, approval and message resources, 15, and 17–19's partner actions.
+// location, approval and message resources, 15's precise map and message
+// content (it is shown on the operational pages instead), and 17–19's partner
+// actions.
 
 import { test, expect } from "@playwright/test";
 import { FieldApp } from "../support/field-app.js";
-import { signInToPortal } from "../support/portal.js";
+import { chooseRole, signInToPortal } from "../support/portal.js";
 import { fixture, person, stack } from "../support/stack.js";
 
 test.describe.configure({ mode: "serial" });
@@ -16,6 +18,8 @@ test.describe.configure({ mode: "serial" });
 const driver = person("driver");
 const dispatcher = person("dispatcher");
 const courier = person("courier");
+const admin = person("admin");
+const admin2 = person("admin2");
 
 const currentStatus = (page, who = driver) =>
   page.locator(`#operations-participant-${who.participant_id} .participant-current-status`);
@@ -152,6 +156,54 @@ test.describe("a second role profile", () => {
     // The dispatcher's operations projection carries it like any participant's.
     await expect(currentStatus(page, courier)).toContainText("AT_PICKUP", { timeout: 30_000 });
     expect(await stillNoReload(page)).toBe(true);
+  });
+});
+
+// The administrator's grant form, as a person uses it.
+async function grant(page, who, role) {
+  await page.selectOption("#participant_id", who.participant_id);
+  await page.selectOption("#role_definition_id", { label: role });
+  await Promise.all([page.waitForURL("**/settings/users"), page.locator("#settings-grant button").click()]);
+}
+
+test.describe("administration", () => {
+  test("15: an administrator manages assignments and sees nothing operational until another grants a role", async ({ page, browser, baseURL }) => {
+    await signInToPortal(page, baseURL, admin);
+    await expect(page).toHaveURL(/\/settings\/users$/);
+
+    // Administration is not operational sight (Section 23.3).
+    expect((await page.goto("/operations")).status()).toBe(404);
+    expect((await page.goto(`/operations/participants/${driver.participant_id}`)).status()).toBe(404);
+
+    // Manages: grants the courier a role, sees it, and revokes it.
+    await page.goto("/settings/users");
+    await grant(page, courier, "Dispatcher");
+    const granted = page.locator(`#settings-member-${courier.participant_id} li`, { hasText: "Dispatcher" });
+    await expect(granted).toBeVisible();
+    await Promise.all([page.waitForURL("**/settings/users"), granted.getByRole("button", { name: "Revoke" }).click()]);
+    await expect(granted).toHaveCount(0);
+
+    // Never to themselves: not offered, and refused when sent anyway.
+    await expect(page.locator(`#participant_id option[value="${admin.participant_id}"]`)).toHaveCount(0);
+    await page.evaluate((id) => document.querySelector("#participant_id").add(new Option("me", id)), admin.participant_id);
+    await page.selectOption("#participant_id", admin.participant_id);
+    await page.selectOption("#role_definition_id", { label: "Dispatcher" });
+    await page.locator("#settings-grant button").click();
+    await expect(page.locator("#settings-message")).toContainText("No one can grant themselves a role");
+
+    // Another administrator grants it, from their own browser.
+    const elsewhere = await browser.newContext({ baseURL });
+    const other = await elsewhere.newPage();
+    await signInToPortal(other, baseURL, admin2);
+    await grant(other, admin, "Dispatcher");
+    await elsewhere.close();
+
+    // Acting under it, the first now opens the operational pages.
+    await page.goto("/select-role");
+    const operational = await page.locator("#role_assignment_id option", { hasText: "Dispatcher" }).getAttribute("value");
+    await chooseRole(page, operational);
+    expect((await page.goto("/operations")).status()).toBe(200);
+    expect((await page.goto(`/operations/participants/${driver.participant_id}`)).status()).toBe(200);
   });
 });
 

@@ -24,8 +24,8 @@ port. Override with `E2E_BASE_URL` to test a different origin. Set
 The server now lives in biz-kit (ADR-0010), so Slice 1's exit criterion runs
 against biz-kit's one-command stack rather than Compose: dispatch on `:4000`,
 SpruceGoose's `/auth` on `:4001`, a seeded carrier with a `DRIVER`, a
-`DISPATCHER` and a `COURIER`, and a development identity provider that signs
-each of them in. Each person signs in once per run and keeps the session, as
+`DISPATCHER`, a `COURIER` and two `ADMIN`s, and a development identity
+provider that signs each of them in. Each person signs in once per run and keeps the session, as
 the app does; `/auth` limits sign-in requests per client, rightly.
 
 ```sh
@@ -60,7 +60,8 @@ key, and the outbox across airplane mode. Start the stack with
 | 13 — the `DRIVER` assignment decides features and verdicts | ✅ | ✅ | `slice1.spec.js`, emulator |
 | 14 — a second role profile without branching: participant, device, assignment, status | ✅ | ✅ (emulator) | `slice1.spec.js`, emulator as courier |
 | 14 — consent, location, approval and communications resources | — | — | Slices 2, 4, 5 |
-| 15 — an administrator without operational sight | — | — | no admin surface yet; next |
+| 15 — an administrator manages assignments, with no operational page until another grants one | ✅ | — | `slice1.spec.js` |
+| 15 — precise map and message content | — | — | Slices 2, 4 |
 | 16 — a dispatcher loses the stream when the relationship ends | ✅ within one heartbeat | — | `slice1.spec.js` |
 | 17–19 — shipper, receiver, broker actions | — | — | pages are read-only; next |
 | ADR-0011 — the session lasts until sign-out | ✅ | ✅ | `slice1.spec.js`, emulator |
