@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { encode } from "../support/canonical.js";
-import { DeviceKey, eventStatement, registrationStatement, unb64url } from "../support/device.js";
+import { DeviceKey, eventStatement, registrationStatement, sampleStatement, unb64url } from "../support/device.js";
 
 const vectors = JSON.parse(
   fs.readFileSync(
@@ -34,6 +34,13 @@ test("an event statement and signature are biz-kit's, byte for byte", () => {
 
   expect(made.equals(unb64url(vectors.event.statement))).toBe(true);
   expect(key.sign(made).equals(unb64url(vectors.event.signature))).toBe(true);
+});
+
+test("a location sample statement and signature are biz-kit's, byte for byte", () => {
+  const made = sampleStatement(vectors.location_sample.fields);
+
+  expect(made.equals(unb64url(vectors.location_sample.statement))).toBe(true);
+  expect(key.sign(made).equals(unb64url(vectors.location_sample.signature))).toBe(true);
 });
 
 test("canonical heads and key order", () => {

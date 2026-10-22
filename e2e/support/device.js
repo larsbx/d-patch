@@ -33,3 +33,10 @@ export const registrationStatement = ({ tenantId, participantId, installationId,
 
 /** `fields`: the body exactly as it will be sent, without device_signature. */
 export const eventStatement = (fields) => encode({ ...fields, schema: "DispatchStatusEventV1" });
+
+/**
+ * A location sample's statement: its fields as sent, without device_signature.
+ * Coordinates and measurements are fixed-point integers; the canonical form
+ * has no floats, so the handset and biz-kit encode the same bytes.
+ */
+export const sampleStatement = (fields) => encode({ ...fields, schema: "DispatchLocationSampleV1" });

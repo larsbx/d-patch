@@ -12,6 +12,25 @@
     "signature": "Y3Pg-9HclMCcEZdDlixjZmWq_oQqcawgbTTqVtlDFz4v6io7EmQbLYRaR59AWyGtCBOGDU_2QaXplJQ43reoDA",
     "statement": "p2Rub3RleB1Sb2FkIGNsb3NlZCDigJQgZMOpdG91ciwgNSBrbWZzY2hlbWF1RGlzcGF0Y2hTdGF0dXNFdmVudFYxZnN0YXR1c2dERUxBWUVEaGV2ZW50X2lkeCQwMTkyYTAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwZTFpZGV2aWNlX2lkeCQwMTkyYTAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwZDFrb2NjdXJyZWRfYXR0MjAyNi0xMC0yMVQxMDowMDowMFpvZGV2aWNlX3NlcXVlbmNlGQEs"
   },
+  "location_sample": {
+    "fields": {
+      "accuracy_cm": 1240,
+      "assignment_id": "0192a000-0000-7000-8000-0000000000b1",
+      "bearing_cdeg": 27050,
+      "consent_grant_id": "0192a000-0000-7000-8000-0000000000c1",
+      "device_id": "0192a000-0000-7000-8000-0000000000d1",
+      "device_sequence": 301,
+      "is_mock": false,
+      "lat_e7": 515074123,
+      "lng_e7": -1278456,
+      "occurred_at": "2026-10-22T10:00:00Z",
+      "provider": "fused",
+      "sample_id": "0192a000-0000-7000-8000-0000000000f1",
+      "speed_cmps": 1250
+    },
+    "signature": "UDRxX0E7ckT7NDPaMdnx8NcOCCd9nbWhYeMH5r4JrJhoZUlSg4ec8KZeIY40aRcBz9Yu8DJkqJiEtMIwsF4TBA",
+    "statement": "rmZsYXRfZTcaHrNoS2ZsbmdfZTc6ABOB92ZzY2hlbWF4GERpc3BhdGNoTG9jYXRpb25TYW1wbGVWMWdpc19tb2Nr9Ghwcm92aWRlcmVmdXNlZGlkZXZpY2VfaWR4JDAxOTJhMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDBkMWlzYW1wbGVfaWR4JDAxOTJhMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDBmMWpzcGVlZF9jbXBzGQTia2FjY3VyYWN5X2NtGQTYa29jY3VycmVkX2F0dDIwMjYtMTAtMjJUMTA6MDA6MDBabGJlYXJpbmdfY2RlZxlpqm1hc3NpZ25tZW50X2lkeCQwMTkyYTAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwYjFvZGV2aWNlX3NlcXVlbmNlGQEtcGNvbnNlbnRfZ3JhbnRfaWR4JDAxOTJhMDAwLTAwMDAtNzAwMC04MDAwLTAwMDAwMDAwMDBjMQ"
+  },
   "public_key": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
   "registration": {
     "installation_id": "0192a000-0000-7000-8000-0000000000aa",

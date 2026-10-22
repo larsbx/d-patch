@@ -6,7 +6,7 @@
 import crypto from "node:crypto";
 import { request as playwrightRequest } from "@playwright/test";
 import { decode } from "./canonical.js";
-import { DeviceKey, b64url, eventStatement, registrationStatement, unb64url } from "./device.js";
+import { DeviceKey, b64url, eventStatement, registrationStatement, sampleStatement, unb64url } from "./device.js";
 import { authURL } from "./stack.js";
 
 const REDIRECT = "com.dispatch.driver:/oauth2redirect";
@@ -122,6 +122,50 @@ export class FieldApp {
       answers.push({ status: response.status(), body: await response.json() });
     }
     return answers;
+  }
+
+  /** Section 25.3: sharing begins with consent for one of one's own trips. */
+  async beginLocationConsent(assignmentId) {
+    const response = await this.http.post("/v1/me/location-consents", {
+      headers: this.headers(),
+      data: { assignment_id: assignmentId },
+    });
+    return { status: response.status(), body: await response.json() };
+  }
+
+  async revokeLocationConsent(grantId) {
+    const response = await this.http.post(`/v1/me/location-consents/${grantId}/revoke`, { headers: this.headers() });
+    return { status: response.status(), body: await response.json() };
+  }
+
+  /**
+   * A position acquired now (or at `occurredAt`), signed as it is acquired.
+   * Fixed-point integers, as the canonical form has no floats.
+   */
+  acquire({ grantId, assignmentId, lat, lng, accuracyM, occurredAt = new Date() }) {
+    const fields = {
+      sample_id: crypto.randomUUID(),
+      assignment_id: assignmentId,
+      lat_e7: Math.round(lat * 1e7),
+      lng_e7: Math.round(lng * 1e7),
+      accuracy_cm: Math.round(accuracyM * 100),
+      provider: "fused",
+      is_mock: false,
+      occurred_at: occurredAt.toISOString(),
+      device_id: this.deviceId,
+      device_sequence: ++this.sequence,
+      consent_grant_id: grantId,
+    };
+    return { ...fields, device_signature: b64url(this.key.sign(sampleStatement(fields))) };
+  }
+
+  /** Section 24.2: one result per sample, in the order sent. */
+  async uploadSamples(samples) {
+    const response = await this.http.post("/v1/me/location-samples:batch", {
+      headers: this.headers(),
+      data: { samples },
+    });
+    return { status: response.status(), results: (await response.json()).results };
   }
 
   async signOut() {

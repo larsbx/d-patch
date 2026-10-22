@@ -108,7 +108,7 @@ snapshot `make up` and the existing gates still run against.
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
 | 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. Android sign-in through biz-kit (until sign-out) and self-registered device keys; role administration with a recent-sign-in step-up; end-to-end runs against biz-kit for 1 (status), 13, 14, 15 and 16. **Remaining:** the partner actions scenarios 17–19 need (below) |
-| 2 | Consented location and maps | not started |
+| 2 | Consented location and maps | **in progress**: consent grants, signed location samples (ADR-0013), the revocation race, freshness and accuracy on the operations page; end to end for scenario 2. **Remaining:** the Android foreground service and outbox, geocoder/router ports with Google adapters, the portal map (scenario 10) |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
 | 5 | Agent-runtime ports, tools, approvals | not started |
@@ -219,6 +219,28 @@ scenario has nothing to run against (ADR-0010):
 Scenario 1's "starts assignment sharing" is Slice 2's (consented location),
 as are scenario 14's consent and location resources; its approval and
 communications resources arrive with Slices 4 and 5.
+
+### Slice 2 so far, and next
+
+Location sharing begins with a consent grant for one of the driver's own
+trips and lasts for the trip plus a grace period, or until revoked. Samples
+arrive in signed batches (`POST /v1/me/location-samples:batch`, `207` per
+sample). They carry fixed-point integers, because the canonical form a device
+signs has no floats (ADR-0013). A sample is kept if its consent covered the
+moment it was acquired, so one queued before revocation still arrives
+(acceptance criterion 4). The operations page shows when a device last
+reported, with its accuracy and age, as an observation and never its
+coordinates. A reader without the relationship gets nothing.
+
+Next, in order:
+
+1. **The Android foreground service and outbox** (§25.3): a persistent
+   `Stop sharing` notification, adaptive sampling, batches of 25 / 60 s, and
+   synchronous cancellation on revocation; scenario 1's "starts assignment
+   sharing" on the emulator.
+2. **Geocoder and router ports with Google adapters behind contract tests**,
+   and the portal map factory (§28): scenario 10 and the adapter contract
+   tests in Slice 2's exit criterion.
 
 ## Contributing
 
