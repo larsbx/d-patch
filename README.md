@@ -107,7 +107,7 @@ snapshot `make up` and the existing gates still run against.
 | Slice | Scope | State |
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
-| 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. Android sign-in through biz-kit (until sign-out) and self-registered device keys; role administration with a recent-sign-in step-up; end-to-end runs against biz-kit for 1 (status), 13, 14, 15 and 16. **Remaining:** the partner actions scenarios 17–19 need (below) |
+| 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. Android sign-in through biz-kit (until sign-out) and self-registered device keys; role administration with a recent-sign-in step-up; end-to-end runs against biz-kit for 1 (status), 13, 14, 15 and 16. **partner actions implemented:** readiness, nonbinding proposals, encrypted proof references and a contracted-loads view (17–19); location and provider message content remain later slices |
 | 2 | Consented location and maps | not started |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
@@ -134,8 +134,8 @@ codes.
 The portal is role-scoped and server-rendered. A browser session holds the
 authenticated subject and the selected role assignment, both revalidated on
 every request (§24.6), and §4.3's switcher is how a user holding several
-assignments says which one they are acting under. Two surfaces are live:
-`/partner/stops/:id` for shippers and receivers, and
+assignments says which one they are acting under. These surfaces are live:
+`/partner/stops/:id` for shippers and receivers, `/loads` and `/loads/:id` for brokers, and
 `/operations/participants/:id` with its `DRIVER` compatibility projection.
 
 The field-authorization boundary is a view model rather than a filter. §4.3's
@@ -210,9 +210,13 @@ was `Secure` over dev's plain HTTP.
 Each of these is a surface biz-kit's dispatch does not have yet, so its
 scenario has nothing to run against (ADR-0010):
 
-1. **Partner actions** (scenarios 17–19): pickup and delivery readiness,
-   window and instruction proposals that stay proposals, proof references, and
-   the broker's contracted-loads view. `/partner/stops/:id` is read-only.
+1. **Partner actions (17–19) are implemented in biz-kit:** readiness reports,
+   nonbinding window/instruction proposals, encrypted proof references, and the
+   broker's contracted-loads and own-thread-metadata view. `partners.spec.js`
+   runs the forms with JavaScript enabled and disabled and rejects an offline
+   form after its basis changes. Location summaries await Slice 2; provider
+   message content and intake await Slice 4. No proposal can be confirmed or
+   executed through these partner actions.
 2. Later, when dispatch's roles become ledger grants: read grants from
    biz-kit's change feed and retire the capability document.
 

@@ -5,8 +5,8 @@
 // Not here, because their surfaces do not exist yet in biz-kit (see the
 // README's coverage table): 1's location sharing (Slice 2), 14's consent,
 // location, approval and message resources, 15's precise map and message
-// content (it is shown on the operational pages instead), and 17–19's partner
-// actions.
+// content (it is shown on the operational pages instead). Partner actions
+// 17–19 are in partners.spec.js.
 
 import { test, expect } from "@playwright/test";
 import { FieldApp } from "../support/field-app.js";

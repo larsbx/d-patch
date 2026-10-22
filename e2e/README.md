@@ -24,7 +24,7 @@ port. Override with `E2E_BASE_URL` to test a different origin. Set
 The server now lives in biz-kit (ADR-0010), so Slice 1's exit criterion runs
 against biz-kit's one-command stack rather than Compose: dispatch on `:4000`,
 SpruceGoose's `/auth` on `:4001`, a seeded carrier with a `DRIVER`, a
-`DISPATCHER`, a `COURIER` and two `ADMIN`s, and a development identity
+`DISPATCHER`, a `COURIER`, two `ADMIN`s and scoped shipper, receiver and broker partners, and a development identity
 provider that signs each of them in. Each person signs in once per run and keeps the session, as
 the app does; `/auth` limits sign-in requests per client, rightly.
 
@@ -63,7 +63,10 @@ key, and the outbox across airplane mode. Start the stack with
 | 15 — an administrator manages assignments, with no operational page until another grants one | ✅ | — | `slice1.spec.js` |
 | 15 — precise map and message content | — | — | Slices 2, 4 |
 | 16 — a dispatcher loses the stream when the relationship ends | ✅ within one heartbeat | — | `slice1.spec.js` |
-| 17–19 — shipper, receiver, broker actions | — | — | pages are read-only; next |
+| 17 — pickup readiness and window proposals, no delivery access or confirmation | implemented | stale offline form refused | `partners.spec.js`, JavaScript on/off |
+| 18 — delivery proof references and instruction proposals, no pickup/route access | implemented | normal navigation recovers | `partners.spec.js`, JavaScript on/off |
+| 19 — selected contracted load and own conversation metadata; unrelated loads are 404 | implemented | reauthorized on navigation | `partners.spec.js`, JavaScript on/off |
+| 19 — consented location summary and provider message content/intake | — | — | Slices 2 and 4; explicit unavailable state |
 | ADR-0011 — the session lasts until sign-out | ✅ | ✅ | `slice1.spec.js`, emulator |
 
 ## Projects
@@ -85,3 +88,11 @@ key, and the outbox across airplane mode. Start the stack with
 | 11, 12 — adapter replacement | 4, 5 |
 | 20–23 — break-glass | 8 |
 | 24–28 — biometric identity assurance | 7 |
+
+The partner fixtures include an unrelated load and another organization's thread
+on the same contracted load. The latter must never appear in the broker's
+view. Readiness/proposal writes go through the real Ash policies, not fixture
+substitutes. The `change-stop` fixture changes a confirmed basis while a form
+is offline; submitting that old form must return 409 before fresh navigation
+can submit. Proof references are metadata, explicitly unverified, with no file
+upload/download in this slice. No new application JavaScript is used.
