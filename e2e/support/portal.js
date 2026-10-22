@@ -4,8 +4,7 @@
 import { FieldApp } from "./field-app.js";
 
 export async function signInToPortal(page, baseURL, who) {
-  const client = await FieldApp.open(baseURL, who);
-  await client.signIn();
+  const client = await FieldApp.signedIn(baseURL, who);
 
   await page.goto("/login");
   await page.fill("#token", client.token);

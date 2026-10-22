@@ -3,8 +3,8 @@
 // "Online and after an offline interval" is the second describe block.
 //
 // Not here, because their surfaces do not exist yet in biz-kit (see the
-// README's coverage table): 1's location sharing (Slice 2), 14's second role
-// profile (test-only in biz-kit), 15, and 17–19's partner actions.
+// README's coverage table): 1's location sharing (Slice 2), 14's consent,
+// location, approval and message resources, 15, and 17–19's partner actions.
 
 import { test, expect } from "@playwright/test";
 import { FieldApp } from "../support/field-app.js";
@@ -15,17 +15,17 @@ test.describe.configure({ mode: "serial" });
 
 const driver = person("driver");
 const dispatcher = person("dispatcher");
+const courier = person("courier");
 
-const currentStatus = (page) =>
-  page.locator(`#operations-participant-${driver.participant_id} .participant-current-status`);
+const currentStatus = (page, who = driver) =>
+  page.locator(`#operations-participant-${who.participant_id} .participant-current-status`);
 
 // A marker that a full page load would wipe: the portal must patch, not reload.
 const markNoReload = (page) => page.evaluate(() => (window.__e2eNoReload = true));
 const stillNoReload = (page) => page.evaluate(() => window.__e2eNoReload === true);
 
-async function signedInDriver(baseURL) {
-  const app = await FieldApp.open(baseURL, driver);
-  await app.signIn();
+async function signedInDriver(baseURL, who = driver) {
+  const app = await FieldApp.signedIn(baseURL, who);
   expect((await app.registerDevice()).status()).toBeLessThan(300);
   return app;
 }
@@ -117,11 +117,41 @@ test.describe("after an offline interval", () => {
   });
 
   test("the session lasts until the person signs out, and no longer", async ({ baseURL }) => {
-    const app = await signedInDriver(baseURL);
+    // A session of its own: signing it out must not end the others' in this run.
+    const app = await FieldApp.open(baseURL, driver);
+    await app.signIn();
     expect((await app.capabilities()).status).toBe(200);
 
     expect((await app.signOut()).status()).toBe(204);
     expect((await app.capabilities()).status).toBe(401);
+  });
+});
+
+test.describe("a second role profile", () => {
+  test("14: a courier reuses the participant, device, assignment and status resources, unbranched", async ({ page, baseURL }) => {
+    await signInToPortal(page, baseURL, dispatcher);
+    await page.goto("/operations");
+    await expect(page.locator(`#operations-participant-${courier.participant_id}`)).toBeVisible();
+    await markNoReload(page);
+
+    // The same sign-in, endpoints and app protocol; only the assignment differs.
+    const app = await signedInDriver(baseURL, courier);
+    const { claims } = await app.capabilities();
+    expect(claims.role.key).toBe("COURIER");
+    expect(claims.role_assignment_id).toBe(courier.role_assignment_id);
+    // Features follow the profile's data, each only where a capability backs it.
+    expect(claims.features).toEqual(expect.arrayContaining(["status", "inbox"]));
+    expect(claims.features).not.toContain("map");
+    expect(claims.status_options.map((o) => o.value)).toContain("AT_PICKUP");
+
+    app.declare("AT_PICKUP");
+    const [stored] = await app.sync();
+    expect(stored.status).toBe(201);
+    expect(stored.body.event.verification).toBe("DEVICE_AUTHENTICATED");
+
+    // The dispatcher's operations projection carries it like any participant's.
+    await expect(currentStatus(page, courier)).toContainText("AT_PICKUP", { timeout: 30_000 });
+    expect(await stillNoReload(page)).toBe(true);
   });
 });
 

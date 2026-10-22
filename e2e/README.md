@@ -23,8 +23,10 @@ port. Override with `E2E_BASE_URL` to test a different origin. Set
 
 The server now lives in biz-kit (ADR-0010), so Slice 1's exit criterion runs
 against biz-kit's one-command stack rather than Compose: dispatch on `:4000`,
-SpruceGoose's `/auth` on `:4001`, a seeded carrier with a `DRIVER` and a
-`DISPATCHER`, and a development identity provider that signs each of them in.
+SpruceGoose's `/auth` on `:4001`, a seeded carrier with a `DRIVER`, a
+`DISPATCHER` and a `COURIER`, and a development identity provider that signs
+each of them in. Each person signs in once per run and keeps the session, as
+the app does; `/auth` limits sign-in requests per client, rightly.
 
 ```sh
 # in a biz-kit checkout beside this one (PostgreSQL with PostGIS on :5432)
@@ -44,17 +46,20 @@ registered with dispatch, and declarations signed when queued and sent later,
 checked against biz-kit's own signing vectors (`biz-kit/signing.spec.js`).
 
 The installed app itself runs against the same stack on an emulator
-(`apps/android-driver/app/src/androidTest`, CI job `android-e2e-biz-kit`):
-sign-in, the Keystore-sealed device key, and the outbox across airplane mode.
-Start the stack with `SPRUCE_GOOSE_PUBLIC_URL=http://10.0.2.2:4001`, then
-`./gradlew :app:connectedDebugAndroidTest -Pdispatch.authProvider=driver`.
+(`apps/android-driver/app/src/androidTest`, CI job `android-e2e-biz-kit`), once
+as the driver and once as the courier: sign-in, the Keystore-sealed device
+key, and the outbox across airplane mode. Start the stack with
+`SPRUCE_GOOSE_PUBLIC_URL=http://10.0.2.2:4001`, then
+`./gradlew :app:connectedDebugAndroidTest -Pdispatch.authProvider=driver`
+(or `=courier`).
 
 | Scenario | Online | After an offline interval | Where |
 | --- | --- | --- | --- |
 | 1 — sets `EN_ROUTE_PICKUP`, the portal patches without a reload | ✅ | ✅ queued, signed, sent in order; the latest made wins | `slice1.spec.js`, emulator |
 | 1 — starts assignment sharing | — | — | Slice 2 (location) |
 | 13 — the `DRIVER` assignment decides features and verdicts | ✅ | ✅ | `slice1.spec.js`, emulator |
-| 14 — a second role profile without branching | — | — | test-only in biz-kit; next |
+| 14 — a second role profile without branching: participant, device, assignment, status | ✅ | ✅ (emulator) | `slice1.spec.js`, emulator as courier |
+| 14 — consent, location, approval and communications resources | — | — | Slices 2, 4, 5 |
 | 15 — an administrator without operational sight | — | — | no admin surface yet; next |
 | 16 — a dispatcher loses the stream when the relationship ends | ✅ within one heartbeat | — | `slice1.spec.js` |
 | 17–19 — shipper, receiver, broker actions | — | — | pages are read-only; next |
