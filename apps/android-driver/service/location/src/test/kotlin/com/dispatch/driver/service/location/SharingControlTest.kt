@@ -190,4 +190,22 @@ class SharingControlTest {
         f.control.ended()
         assertNull(f.stored)
     }
+
+    // One session per process: a new one stops the last, and a stale session
+    // closing cannot clear the one after it.
+    @Test
+    fun `sessions hold one live signal`() {
+        val sessions = SharingSessions()
+        val first = sessions.open()
+        val second = sessions.open()
+
+        assertTrue(first.isCompleted)
+        assertTrue(sessions.active)
+        sessions.close(first)
+        assertTrue(sessions.active)
+
+        sessions.stop()
+        assertTrue(second.isCompleted)
+        assertTrue(!sessions.active)
+    }
 }

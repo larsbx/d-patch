@@ -1,2 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+          Section 25.3: collection runs only here, in the foreground, with a
+          persistent notification exposing "Stop sharing". Not exported: only
+          this app starts or stops it.
+        -->
+        <service
+            android:name=".LocationSharingService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+    </application>
+
+</manifest>
