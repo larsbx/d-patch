@@ -10,7 +10,15 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.dispatch.driver.core.database.DispatchDatabase
+import com.dispatch.driver.core.database.LocationOutbox
 import com.dispatch.driver.core.database.StatusOutbox
+import com.dispatch.driver.core.model.device.DeviceKey
+import com.dispatch.driver.core.model.device.SigningDevice
+import com.dispatch.driver.core.model.location.LocationFix
+import com.dispatch.driver.core.model.location.SampleTransport
+import com.dispatch.driver.core.model.location.SampleVerdict
+import com.dispatch.driver.core.model.location.Sharing
+import com.dispatch.driver.core.model.location.UploadResult
 import com.dispatch.driver.core.model.status.CurrentStatus
 import com.dispatch.driver.core.model.status.StatusTransport
 import com.dispatch.driver.core.model.status.SubmitResult
@@ -21,6 +29,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
 class SyncWorkerTest {
@@ -28,6 +37,10 @@ class SyncWorkerTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val database = Room.inMemoryDatabaseBuilder(context, DispatchDatabase::class.java).allowMainThreadQueries().build()
     private val outbox = StatusOutbox(database)
+    private val device = SigningDevice("device-1", DeviceKey.fromSeed(ByteArray(32) { 3 }))
+    private val samples = LocationOutbox(database, signer = { device })
+    private var sampleTransport = SampleTransport { _, batch -> UploadResult.Answered(batch.associate { it.sampleId to SampleVerdict("ACCEPTED", null) }) }
+    private val fix = LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))
 
     @After
     fun close() = database.close()
@@ -37,7 +50,7 @@ class SyncWorkerTest {
             .setInputData(input)
             .setWorkerFactory(object : WorkerFactory() {
                 override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
-                    SyncWorker(appContext, workerParameters, outbox, transport)
+                    SyncWorker(appContext, workerParameters, outbox, transport, samples, sampleTransport)
             })
             .build()
 
@@ -73,5 +86,25 @@ class SyncWorkerTest {
         outbox.declare("AT_PICKUP", null, "ra-1")
 
         assertEquals(ListenableWorker.Result.retry(), worker { _, _ -> SubmitResult.Unreachable }.doWork())
+    }
+
+    // Samples left when a session ended offline go with the next sync, not
+    // with the next session.
+    @Test
+    fun `queued location samples drain with the declarations`() = runTest {
+        samples.acquire(fix, Sharing("trip-1", "g-1"), "ra-1")
+        val stored = StatusTransport { d, _ -> SubmitResult.Stored(CurrentStatus(d.status, "PARTICIPANT", d.occurredAt)) }
+
+        assertEquals(ListenableWorker.Result.success(), worker(transport = stored).doWork())
+        assertEquals(0, samples.pending())
+    }
+
+    @Test
+    fun `a sample still pending is a retry, even with no declaration left`() = runTest {
+        samples.acquire(fix, Sharing("trip-1", "g-1"), "ra-1")
+        sampleTransport = SampleTransport { _, _ -> UploadResult.Unreachable }
+        val stored = StatusTransport { d, _ -> SubmitResult.Stored(CurrentStatus(d.status, "PARTICIPANT", d.occurredAt)) }
+
+        assertEquals(ListenableWorker.Result.retry(), worker(transport = stored).doWork())
     }
 }

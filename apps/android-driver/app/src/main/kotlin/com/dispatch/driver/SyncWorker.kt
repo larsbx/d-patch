@@ -13,16 +13,19 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.dispatch.driver.core.database.LocationOutbox
 import com.dispatch.driver.core.database.StatusOutbox
 import com.dispatch.driver.core.database.SyncOutcome
 import com.dispatch.driver.core.model.capability.SyncRequester
+import com.dispatch.driver.core.model.location.SampleTransport
 import com.dispatch.driver.core.model.status.StatusTransport
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.util.concurrent.TimeUnit
 
 /**
- * Section 25.2's `SyncWorker`: drains the outbox once per run.
+ * Section 25.2's `SyncWorker`: drains the outboxes once per run, declarations
+ * and location samples alike.
  *
  * Success only when nothing is left pending. Anything still queued — deferred
  * by backoff, or declared while this run was in flight — is a retry, so no
@@ -34,14 +37,15 @@ class SyncWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val outbox: StatusOutbox,
     private val transport: StatusTransport,
+    private val samples: LocationOutbox,
+    private val sampleTransport: SampleTransport,
 ) : CoroutineWorker(context, params) {
 
+    // Both outboxes, every run: one's network trouble must not strand the other's.
     override suspend fun doWork(): Result {
         if (inputData.getBoolean(RETRY_NOW_KEY, false)) outbox.retryNow()
-        return when (outbox.sync(transport)) {
-            SyncOutcome.Drained -> Result.success()
-            is SyncOutcome.RetryAt -> Result.retry()
-        }
+        val outcomes = listOf(outbox.sync(transport), samples.sync(sampleTransport))
+        return if (outcomes.all { it == SyncOutcome.Drained }) Result.success() else Result.retry()
     }
 
     companion object {

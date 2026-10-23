@@ -20,11 +20,6 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import okhttp3.Cookie
-import okhttp3.CookieJar
-import okhttp3.HttpUrl
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -68,7 +63,7 @@ class AgainstTheStackTest {
 
     @Test
     fun aFieldRoleSignsInRegistersTheDeviceAndWhatWasQueuedOfflineArrivesSigned() = runBlocking {
-        signIn.finish(browse(checkNotNull(signIn.start())))
+        signIn.finish(StackBrowser.follow(checkNotNull(signIn.start())))
         assertNull(signIn.message.value)
 
         // ADR-0009: the document verified against the pinned development key,
@@ -110,28 +105,6 @@ class AgainstTheStackTest {
         assertTrue(auth.signInRequired.value)
         assertEquals(AuthResult.Refused(401), AuthApi(BuildConfig.AUTH_BASE_URL).principal(token))
     }
-
-    /** The system browser: biz-kit's login, the provider, and the callback back to the app. */
-    private tailrec fun browse(url: String): String {
-        if (url.startsWith("${BuildConfig.APPLICATION_ID}:")) return url
-        val next = browser.newCall(Request.Builder().url(url).build()).execute().use { response ->
-            val location = checkNotNull(response.header("Location")) { "no redirect from $url: ${response.code}" }
-            if (location.startsWith("${BuildConfig.APPLICATION_ID}:")) location else checkNotNull(response.request.url.resolve(location)).toString()
-        }
-        return browse(next)
-    }
-
-    private val browser = OkHttpClient.Builder()
-        .followRedirects(false)
-        .cookieJar(object : CookieJar {
-            private val jar = mutableListOf<Cookie>()
-            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                jar.removeAll { kept -> cookies.any { it.name == kept.name } }
-                jar += cookies
-            }
-            override fun loadForRequest(url: HttpUrl): List<Cookie> = jar.filter { it.matches(url) }
-        })
-        .build()
 
     private fun airplaneMode(on: Boolean) {
         val command = "cmd connectivity airplane-mode ${if (on) "enable" else "disable"}"

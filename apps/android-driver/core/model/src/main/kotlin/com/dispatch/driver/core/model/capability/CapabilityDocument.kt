@@ -83,4 +83,5 @@ data class SignedDocument(
 /** Feature keys the server may publish (`Dispatch.Access.Roles.*`). */
 object Features {
     const val STATUS = "status"
+    const val LOCATION_SHARING = "location_sharing"
 }

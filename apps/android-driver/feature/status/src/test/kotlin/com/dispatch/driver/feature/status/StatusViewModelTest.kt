@@ -82,7 +82,7 @@ class StatusViewModelTest {
         val queued = outbox.view().first { it.events.isNotEmpty() }.events.single()
         assertEquals("DELAYED", queued.status)
         assertEquals("Road closed", queued.note)
-        assertEquals("ra-1", database.outbox().observeEvents().first().single().roleAssignmentId)
+        assertEquals("ra-1", database.outbox().observeEvents("STATUS").first().single().roleAssignmentId)
         assertEquals(2, syncRequests)
         assertNull(vm.error.value)
     }

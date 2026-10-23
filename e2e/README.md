@@ -24,8 +24,9 @@ port. Override with `E2E_BASE_URL` to test a different origin. Set
 The server now lives in biz-kit (ADR-0010), so Slice 1's exit criterion runs
 against biz-kit's one-command stack rather than Compose: dispatch on `:4000`,
 SpruceGoose's `/auth` on `:4001`, a seeded carrier with a `DRIVER`, a
-`DISPATCHER`, a `COURIER` and two `ADMIN`s, and a development identity
-provider that signs each of them in. Each person signs in once per run and keeps the session, as
+`DISPATCHER`, a `COURIER`, two `ADMIN`s and a `BROKER` of an unrelated load,
+the driver's planned trip, and a development identity provider that signs
+each of them in. Each person signs in once per run and keeps the session, as
 the app does; `/auth` limits sign-in requests per client, rightly.
 
 ```sh
@@ -56,12 +57,16 @@ key, and the outbox across airplane mode. Start the stack with
 | Scenario | Online | After an offline interval | Where |
 | --- | --- | --- | --- |
 | 1 — sets `EN_ROUTE_PICKUP`, the portal patches without a reload | ✅ | ✅ queued, signed, sent in order; the latest made wins | `slice1.spec.js`, emulator |
-| 1 — starts assignment sharing | — | — | Slice 2 (location) |
+| 1 — starts assignment sharing | ✅ the trip and its consent (`assignments`) | — | `location.spec.js`; emulator: `SharingAgainstTheStackTest` (CI, on pull requests) |
 | 13 — the `DRIVER` assignment decides features and verdicts | ✅ | ✅ | `slice1.spec.js`, emulator |
 | 14 — a second role profile without branching: participant, device, assignment, status | ✅ | ✅ (emulator) | `slice1.spec.js`, emulator as courier |
 | 14 — consent, location, approval and communications resources | — | — | Slices 2, 4, 5 |
 | 15 — an administrator manages assignments, with no operational page until another grants one | ✅ | — | `slice1.spec.js` |
 | 15 — precise map and message content | — | — | Slices 2, 4 |
+| 2 — a GPS sample appears with accuracy and age; an unrelated broker gets nothing | ✅ (protocol) | — | `location.spec.js` |
+| Acceptance criterion 4 — revoking stops sharing, except what was acquired before | ✅ | ✅ | `location.spec.js` |
+| ADR-0014 — real time exactly while a precise reader watches; trickle otherwise; the stream ends with consent | ✅ (protocol) | — | `location.spec.js` |
+| 10 — geocoder, router and map adapters replaced independently | — | — | Slice 2, next |
 | 16 — a dispatcher loses the stream when the relationship ends | ✅ within one heartbeat | — | `slice1.spec.js` |
 | 17–19 — shipper, receiver, broker actions | — | — | pages are read-only; next |
 | ADR-0011 — the session lasts until sign-out | ✅ | ✅ | `slice1.spec.js`, emulator |

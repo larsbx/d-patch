@@ -15,7 +15,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.dispatch.driver.feature.status.StatusRoute
+import com.dispatch.driver.service.location.TripSharing
+import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -25,6 +28,10 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var signIn: SignInFlow
 
     @Inject lateinit var deviceRegistration: DeviceRegistration
+
+    @Inject lateinit var tripSharing: TripSharing
+
+    @Inject lateinit var sharingHost: AppSharingHost
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +53,11 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         deviceRegistration.retry()
+        // In the foreground, where a location service may start: Section 25.3's
+        // resumption, after the server confirms the consent, and any owed stop.
+        lifecycleScope.launch { tripSharing.resume() }
+        // Section 25.3: a running session sends what it holds.
+        sharingHost.foregrounded()
     }
 
     override fun onNewIntent(intent: Intent) {

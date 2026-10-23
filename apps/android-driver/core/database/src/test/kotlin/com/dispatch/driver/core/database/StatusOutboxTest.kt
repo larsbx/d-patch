@@ -94,7 +94,7 @@ class StatusOutboxTest {
         assertTrue(queued.all { it.state == PendingState.PENDING })
         // A blank note is no note: Section 24.1 wants nonblank where one is required.
         assertNull(queued.first().note)
-        assertEquals(listOf(2L, 1L), database.outbox().observeEvents().first().map { it.deviceSequence })
+        assertEquals(listOf(2L, 1L), database.outbox().observeEvents("STATUS").first().map { it.deviceSequence })
     }
 
     @Test
@@ -105,7 +105,7 @@ class StatusOutboxTest {
         val restarted = StatusOutbox(database, clock = { now }, newEventId = { "after-restart" })
         restarted.declare("LOADING", null, "ra-1")
 
-        assertEquals(listOf(2L, 1L), database.outbox().observeEvents().first().map { it.deviceSequence })
+        assertEquals(listOf(2L, 1L), database.outbox().observeEvents("STATUS").first().map { it.deviceSequence })
     }
 
     @Test

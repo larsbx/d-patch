@@ -65,10 +65,10 @@ sealed interface Disposition {
         }
 
         /** Request timeout, too-early and throttling resolve by waiting. */
-        private val retryable4xx = setOf(408, 425, 429)
+        internal val retryable4xx = setOf(408, 425, 429)
 
         /** A `409` that is not a conflict: an identical request is still running. */
-        private val retryableCodes = setOf("IDEMPOTENCY_KEY_IN_PROGRESS")
+        internal val retryableCodes = setOf("IDEMPOTENCY_KEY_IN_PROGRESS")
 
         /**
          * The stable codes of `DispatchWeb.StatusEventController` and

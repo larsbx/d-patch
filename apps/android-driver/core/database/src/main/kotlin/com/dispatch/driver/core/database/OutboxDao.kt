@@ -15,11 +15,20 @@ interface OutboxDao {
     @Insert
     suspend fun insert(event: PendingEventEntity): Long
 
-    @Query("SELECT * FROM pending_events WHERE state = 'PENDING' AND next_attempt_at <= :now ORDER BY device_sequence")
-    suspend fun due(now: Long): List<PendingEventEntity>
+    // Every read below is of one `kind`: the table is shared so device
+    // sequences never repeat, but each outbox decodes only its own rows.
 
-    @Query("SELECT MIN(next_attempt_at) FROM pending_events WHERE state = 'PENDING'")
-    suspend fun earliestPendingAttempt(): Long?
+    @Query("SELECT * FROM pending_events WHERE kind = :kind AND state = 'PENDING' AND next_attempt_at <= :now ORDER BY device_sequence")
+    suspend fun due(kind: String, now: Long): List<PendingEventEntity>
+
+    @Query("SELECT MIN(next_attempt_at) FROM pending_events WHERE kind = :kind AND state = 'PENDING'")
+    suspend fun earliestPendingAttempt(kind: String): Long?
+
+    @Query("SELECT COUNT(*) FROM pending_events WHERE kind = :kind AND state = 'PENDING'")
+    suspend fun countPending(kind: String): Int
+
+    @Query("SELECT rejection_code FROM pending_events WHERE kind = :kind AND state = 'REJECTED' ORDER BY device_sequence")
+    suspend fun rejectionCodes(kind: String): List<String>
 
     @Query("UPDATE pending_events SET state = 'ACKNOWLEDGED', rejection_code = NULL, corrective_action = NULL WHERE local_id = :localId")
     suspend fun acknowledge(localId: Long)
@@ -36,8 +45,8 @@ interface OutboxDao {
     @Query("UPDATE pending_events SET next_attempt_at = :now, corrective_action = NULL WHERE state = 'PENDING' AND next_attempt_at > :now")
     suspend fun makeDue(now: Long)
 
-    @Query("SELECT * FROM pending_events ORDER BY device_sequence DESC")
-    fun observeEvents(): Flow<List<PendingEventEntity>>
+    @Query("SELECT * FROM pending_events WHERE kind = :kind ORDER BY device_sequence DESC")
+    fun observeEvents(kind: String): Flow<List<PendingEventEntity>>
 
     @Query("SELECT * FROM cached_driver_state WHERE singleton_id = 0")
     suspend fun driverState(): CachedDriverStateEntity?

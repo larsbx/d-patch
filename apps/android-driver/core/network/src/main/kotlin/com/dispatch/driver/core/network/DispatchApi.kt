@@ -7,6 +7,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.Path
 
 /**
  * The `/v1` routes this client uses, from `contracts/openapi.json`.
@@ -38,4 +39,29 @@ internal interface DispatchApi {
         @Header("X-Role-Assignment-ID") roleAssignmentId: String,
         @Body body: RequestBody,
     ): Response<ResponseBody>
+
+    @POST("v1/me/location-consents")
+    suspend fun beginLocationConsent(
+        @Header("X-Role-Assignment-ID") roleAssignmentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("v1/me/location-consents/{consent_id}/revoke")
+    suspend fun revokeLocationConsent(
+        @Header("X-Role-Assignment-ID") roleAssignmentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Path("consent_id") consentGrantId: String,
+    ): Response<ResponseBody>
+
+    // Section 24.2's custom method: the `:batch` is part of the path.
+    @POST("v1/me/location-samples:batch")
+    suspend fun uploadSamples(
+        @Header("X-Role-Assignment-ID") roleAssignmentId: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @GET("v1/me/assignments")
+    suspend fun assignments(@Header("X-Role-Assignment-ID") roleAssignmentId: String): Response<ResponseBody>
 }

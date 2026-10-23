@@ -108,7 +108,7 @@ snapshot `make up` and the existing gates still run against.
 | --- | --- | --- |
 | 0 | Repository, contracts, Compose, CI, health checks, ADR template | **complete** |
 | 1 | Participant identity, role profiles, assignments, status | **built**: identity, access, loads, parties, status declarations, the audit chain, the `/v1` status surface, the role-scoped portal pages and streams; the signed capability document (in biz-kit); the capability-driven Android offline status UI. Android sign-in through biz-kit (until sign-out) and self-registered device keys; role administration with a recent-sign-in step-up; end-to-end runs against biz-kit for 1 (status), 13, 14, 15 and 16. **Remaining:** the partner actions scenarios 17–19 need (below) |
-| 2 | Consented location and maps | not started |
+| 2 | Consented location and maps | **in progress**: consent grants, signed location samples (ADR-0013), the revocation race, freshness and accuracy on the operations page; end to end for scenario 2. **Remaining:** the Android foreground service and outbox, geocoder/router ports with Google adapters, the portal map (scenario 10) |
 | 3 | ELD notification intake | not started |
 | 4 | Communications ports and Twilio adapters | not started |
 | 5 | Agent-runtime ports, tools, approvals | not started |
@@ -219,6 +219,60 @@ scenario has nothing to run against (ADR-0010):
 Scenario 1's "starts assignment sharing" is Slice 2's (consented location),
 as are scenario 14's consent and location resources; its approval and
 communications resources arrive with Slices 4 and 5.
+
+### Slice 2 so far, and next
+
+Location sharing begins with a consent grant for one of the driver's own
+trips and lasts for the trip plus a grace period, or until revoked. Samples
+arrive in signed batches (`POST /v1/me/location-samples:batch`, `207` per
+sample). They carry fixed-point integers, because the canonical form a device
+signs has no floats (ADR-0013). A sample is kept if its consent covered the
+moment it was acquired, so one queued before revocation still arrives
+(acceptance criterion 4). The operations page shows when a device last
+reported, with its accuracy and age, as an observation and never its
+coordinates. A reader without the relationship gets nothing.
+
+Cadence follows demand (ADR-0014). While a dispatcher who may see precise
+location (`operations.location.precise.read`, with the driver's consent
+active) has the driver's page open, the phone hears so on its own stream
+(`GET /v1/me/location-demand`) and samples every 3 s, uploading each at once;
+that dispatcher's page shows the live coordinates, patched in place. With no
+such viewer, the phone trickles: a sample every 2 minutes, uploaded every 10.
+
+On the phone, everything below the foreground service is built and proved
+on the JVM. `SharingCadence` (core:model) is §25.3 with ADR-0014 as one pure
+step function; its invariants are properties over random histories:
+every sample acquired while sharing is sent exactly once and in order,
+revocation is final, batches hold 1 to 25 samples, nothing is held past its
+deadline, and a realtime sample leaves in the step that acquired it.
+`LocationOutbox` stores each fix signed, in the status outbox's
+device-sequence space, and resends it unchanged until the server settles it.
+`LocationSharing` (service:location) runs the cadence against the platform
+provider, the outbox and the demand stream. Revocation closes acquisition
+first and releases the provider before the sealed batch is sent. Every module
+here was mutation-checked; each surviving mutation was answered with a
+sharper test.
+
+The app can now share for a trip end to end. `GET /v1/me/assignments` (biz-kit)
+lists the driver's trips not yet over, with the consent covering each. The
+status screen offers the trip under way: "Share location for this trip",
+after location (and notification) permission. Sharing runs in a foreground
+service of type `location`, with an ongoing notification and its
+`Stop sharing`. Stopping halts collection on the device before any network
+call, writes the owed revocation to disk first, and retries it until the
+server hears. After a restart the app resumes only when the server confirms
+the very consent it persisted (§25.3). A running session shows on every
+screen state, signed out included (§2.2).
+
+Next, in order:
+
+1. **Scenario 1 on the emulator in CI.** `SharingAgainstTheStackTest` signs
+   in, shares, feeds a fix through the emulator's test provider, sees the
+   signed sample accepted, declares `EN_ROUTE_PICKUP`, and stops. It compiles
+   and runs in the emulator job, which runs on pull requests.
+2. **Geocoder and router ports with Google adapters behind contract tests**,
+   and the portal map factory (§28): scenario 10 and the adapter contract
+   tests in Slice 2's exit criterion.
 
 ## Contributing
 

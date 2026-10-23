@@ -25,6 +25,14 @@ android {
         jvmTarget = "17"
     }
 
+    packaging {
+        resources {
+            // As in :app: BouncyCastle (via core:model) and jspecify both ship
+            // this OSGi descriptor; nothing here reads it.
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -37,8 +45,11 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(projects.core.model)
     implementation(projects.core.database)
+    // The demand stream's events (ADR-0014).
+    implementation(projects.core.network)
     implementation(libs.work.runtime.ktx)
 
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }

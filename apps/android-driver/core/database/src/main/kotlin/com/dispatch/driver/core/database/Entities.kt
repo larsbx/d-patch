@@ -86,5 +86,5 @@ data class CachedCapabilityDocumentEntity(
 /** `pending_events.state`. Text in the table so a row reads without the enum. */
 enum class PendingState { PENDING, ACKNOWLEDGED, REJECTED }
 
-/** `pending_events.kind`. Location samples and approvals join this later. */
-enum class PendingKind { STATUS }
+/** `pending_events.kind`. Approvals join this later. */
+enum class PendingKind { STATUS, LOCATION_SAMPLE }
