@@ -239,12 +239,27 @@ active) has the driver's page open, the phone hears so on its own stream
 that dispatcher's page shows the live coordinates, patched in place. With no
 such viewer, the phone trickles: a sample every 2 minutes, uploaded every 10.
 
+On the phone, everything below the foreground service is built and proved
+on the JVM. `SharingCadence` (core:model) is §25.3 with ADR-0014 as one pure
+step function; its invariants are properties over random histories:
+every sample acquired while sharing is sent exactly once and in order,
+revocation is final, batches hold 1 to 25 samples, nothing is held past its
+deadline, and a realtime sample leaves in the step that acquired it.
+`LocationOutbox` stores each fix signed, in the status outbox's
+device-sequence space, and resends it unchanged until the server settles it.
+`LocationSharing` (service:location) runs the cadence against the platform
+provider, the outbox and the demand stream. Revocation closes acquisition
+first and releases the provider before the sealed batch is sent. Every module
+here was mutation-checked; each surviving mutation was answered with a
+sharper test.
+
 Next, in order:
 
-1. **The Android foreground service and outbox** (§25.3): a persistent
-   `Stop sharing` notification, the demand stream's two cadences, and
-   synchronous cancellation on revocation; scenario 1's "starts assignment
-   sharing" on the emulator.
+1. **Which trip to share for.** The app must name an assignment to consent
+   for, and `/v1` has no route for a participant's own trips yet (§24 does
+   not name one). Then the foreground service (`Stop sharing` notification,
+   `foregroundServiceType="location"`), the consent screen, and scenario 1's
+   "starts assignment sharing" on the emulator.
 2. **Geocoder and router ports with Google adapters behind contract tests**,
    and the portal map factory (§28): scenario 10 and the adapter contract
    tests in Slice 2's exit criterion.
