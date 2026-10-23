@@ -42,14 +42,14 @@ class PrefsSharingRecords(private val prefs: SharedPreferences) : SharingRecords
     }
 }
 
-/** The outbox as one session's [SampleStore]: each fix signed under [record]'s consent. */
+/** The outbox as one session's [SampleStore]: each fix signed under [consent]. */
 class OutboxSampleStore(
     private val outbox: LocationOutbox,
     private val transport: SampleTransport,
-    private val record: SharingRecord,
+    private val consent: SessionConsent,
     private val worker: SyncRequester,
 ) : SampleStore {
-    override suspend fun acquire(fix: LocationFix): Boolean = outbox.acquire(fix, record.sharing, record.roleAssignmentId) != null
+    override suspend fun acquire(fix: LocationFix): Boolean = outbox.acquire(fix, consent.sharing, consent.roleAssignmentId) != null
 
     // What this leaves pending (no network) is the SyncWorker's to send, so it
     // goes even if the session ends first.

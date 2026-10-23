@@ -20,7 +20,7 @@ import com.dispatch.driver.service.location.PrefsSharingRecords
 import com.dispatch.driver.service.location.ServiceSharingRunner
 import com.dispatch.driver.service.location.SharingControl
 import com.dispatch.driver.service.location.SharingHost
-import com.dispatch.driver.service.location.SharingRecord
+import com.dispatch.driver.service.location.SessionConsent
 import com.dispatch.driver.service.location.SharingRecords
 import com.dispatch.driver.service.location.SharingSessions
 import com.dispatch.driver.service.location.TripSharing
@@ -107,9 +107,9 @@ class AppSharingHost @Inject constructor(
         foregrounds.tryEmit(Unit)
     }
 
-    override fun sharingSession(record: SharingRecord): LocationSharing = LocationSharing(
+    override fun sharingSession(consent: SessionConsent): LocationSharing = LocationSharing(
         fixes = PlatformFixSource(context.getSystemService(LocationManager::class.java)),
-        store = OutboxSampleStore(outbox, client, record, worker),
-        demand = DemandSource { client.demand(record.roleAssignmentId) },
+        store = OutboxSampleStore(outbox, client, consent, worker),
+        demand = DemandSource { client.demand(consent.roleAssignmentId) },
     )
 }

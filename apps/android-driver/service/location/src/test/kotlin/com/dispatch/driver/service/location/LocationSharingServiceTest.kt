@@ -28,6 +28,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
+private val granted: java.time.Instant = java.time.Instant.parse("2026-10-23T10:00:00Z")
+
 /**
  * Section 25.3's foreground service: sharing is visible for as long as it
  * runs, with `Stop sharing` one tap away, and it ends when consent does.
@@ -40,7 +42,7 @@ class LocationSharingServiceTest {
     class Host : Application(), SharingHost {
         val demand = Channel<DemandEvent>(Channel.UNLIMITED)
         val log = mutableListOf<String>()
-        var revokeAnswer: Fetch<LocationConsent> = Fetch.Ok(LocationConsent("g-1", "trip-1", "t", null, "now"))
+        var revokeAnswer: Fetch<LocationConsent> = Fetch.Ok(LocationConsent("g-1", "trip-1", "2026-10-23T10:00:00Z", null, "now"))
         private var record: SharingRecord? = null
 
         override val sessions = SharingSessions()
@@ -49,7 +51,7 @@ class LocationSharingServiceTest {
             SharingControl(
                 api = object : ConsentApi {
                     override suspend fun begin(roleAssignmentId: String, assignmentId: String, idempotencyKey: String) =
-                        Fetch.Ok(LocationConsent("g-1", assignmentId, "t", null, null))
+                        Fetch.Ok(LocationConsent("g-1", assignmentId, "2026-10-23T10:00:00Z", null, null))
                     override suspend fun revoke(roleAssignmentId: String, consentGrantId: String, idempotencyKey: String) =
                         revokeAnswer.also { log += "revoke $consentGrantId" }
                     override suspend fun trips(roleAssignmentId: String): Fetch<List<Trip>> = Fetch.Unreachable.also { log += "trips" }
@@ -62,7 +64,7 @@ class LocationSharingServiceTest {
             )
         }
 
-        override fun sharingSession(record: SharingRecord) = LocationSharing(
+        override fun sharingSession(consent: SessionConsent) = LocationSharing(
             fixes = {
                 flow {
                     log += "fixes"
@@ -89,12 +91,13 @@ class LocationSharingServiceTest {
 
     private val host get() = ApplicationProvider.getApplicationContext<Host>()
     private val record = SharingRecord("trip-1", "g-1", "ra-1")
+    private val consent = SessionConsent(Sharing("trip-1", "g-1", granted), "ra-1")
 
     @Before
     fun clear() = host.log.clear()
 
     private fun started() =
-        Robolectric.buildService(LocationSharingService::class.java, LocationSharingService.start(host, record)).create().startCommand(0, 1)
+        Robolectric.buildService(LocationSharingService::class.java, LocationSharingService.start(host, consent)).create().startCommand(0, 1)
 
     @Test
     fun `sharing runs in the foreground, for location, with Stop sharing on its notification`() {
@@ -113,7 +116,7 @@ class LocationSharingServiceTest {
 
     @Test
     fun `Stop sharing stops collection here, then revokes at the server, and the service ends`() = kotlinx.coroutines.test.runTest {
-        host.sharingControl.start(Trip("trip-1", "load-1", "ACTIVE", "t", null, LocationConsent("g-1", "trip-1", "t", null, null)), "ra-1")
+        host.sharingControl.start(Trip("trip-1", "load-1", "ACTIVE", "t", null, LocationConsent("g-1", "trip-1", "2026-10-23T10:00:00Z", null, null)), "ra-1")
         val controller = started()
         shadowOf(android.os.Looper.getMainLooper()).idle()
 
@@ -129,7 +132,7 @@ class LocationSharingServiceTest {
 
     @Test
     fun `the server ending consent ends the service and forgets the consent`() = kotlinx.coroutines.test.runTest {
-        host.sharingControl.start(Trip("trip-1", "load-1", "ACTIVE", "t", null, LocationConsent("g-1", "trip-1", "t", null, null)), "ra-1")
+        host.sharingControl.start(Trip("trip-1", "load-1", "ACTIVE", "t", null, LocationConsent("g-1", "trip-1", "2026-10-23T10:00:00Z", null, null)), "ra-1")
         val controller = started()
         shadowOf(android.os.Looper.getMainLooper()).idle()
 
@@ -185,9 +188,9 @@ class LocationSharingServiceTest {
 
     @Test
     fun `the runner starts the service with the consent it shares under`() {
-        ServiceSharingRunner(host, host.sessions).start(Sharing("trip-1", "g-1"), "ra-1")
+        ServiceSharingRunner(host, host.sessions).start(Sharing("trip-1", "g-1", granted), "ra-1")
         val intent = shadowOf(host).nextStartedService
         assertEquals(LocationSharingService.ACTION_START, intent.action)
-        assertEquals(record, LocationSharingService.recordOf(intent))
+        assertEquals(consent, LocationSharingService.consentOf(intent))
     }
 }

@@ -13,6 +13,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
 
+private val granted: java.time.Instant = java.time.Instant.parse("2026-10-23T10:00:00Z")
+
 /** What the status screen offers about location, and what its buttons do. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TripSharingTest {
@@ -50,10 +52,10 @@ class TripSharingTest {
         val trips = MutableStateFlow<Fetch<List<Trip>>>(Fetch.Ok(listOf(Trip("trip-1", "load-trip-1", "ACTIVE", "t", null, null))))
         var stored: SharingRecord? = null
         val sessions = SharingSessions()
-        var revokeAnswer: Fetch<LocationConsent> = Fetch.Ok(LocationConsent("g-1", "trip-1", "t", null, "now"))
+        var revokeAnswer: Fetch<LocationConsent> = Fetch.Ok(LocationConsent("g-1", "trip-1", "2026-10-23T10:00:00Z", null, "now"))
         val api = object : ConsentApi {
             override suspend fun begin(roleAssignmentId: String, assignmentId: String, idempotencyKey: String) =
-                Fetch.Ok(LocationConsent("g-1", assignmentId, "t", null, null))
+                Fetch.Ok(LocationConsent("g-1", assignmentId, "2026-10-23T10:00:00Z", null, null))
             override suspend fun revoke(roleAssignmentId: String, consentGrantId: String, idempotencyKey: String) = revokeAnswer
             override suspend fun trips(roleAssignmentId: String) = trips.value
         }
