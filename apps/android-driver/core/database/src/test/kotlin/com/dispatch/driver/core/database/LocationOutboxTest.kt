@@ -40,9 +40,9 @@ class LocationOutboxTest {
     private var ids = 0
     private val device = SigningDevice("device-1", DeviceKey.fromSeed(ByteArray(32) { 7 }))
     private val outbox = LocationOutbox(database, clock = { now }, newSampleId = { "sample-${++ids}" }, signer = { device })
-    private val sharing = Sharing(assignmentId = "trip-1", consentGrantId = "grant-1")
+    private val sharing = Sharing(assignmentId = "trip-1", consentGrantId = "grant-1", grantedAt = Instant.ofEpochMilli(now))
 
-    private fun fix() = LocationFix(51.5, -0.12, 8.0, null, null, "gps", false, Instant.ofEpochMilli(now))
+    private fun fix(at: Instant = Instant.ofEpochMilli(now)) = LocationFix(51.5, -0.12, 8.0, null, null, "gps", false, at)
 
     @After
     fun close() = database.close()
@@ -74,6 +74,22 @@ class LocationOutboxTest {
         val unregistered = LocationOutbox(database, clock = { now }, signer = { null })
         assertNull(unregistered.acquire(fix(), sharing, "ra-1"))
         assertEquals(0, unregistered.pending())
+    }
+
+    // Section 23.2: nothing from before consent. A provider may hand over a
+    // cached fix, or the device clock may trail the server's; either way a fix
+    // the consent does not cover is not stored, and takes no device sequence.
+    @Test
+    fun `a fix is stored exactly when the consent covers it`() = runTest {
+        val random = Random(2026_10_23)
+        repeat(200) {
+            val offset = random.nextLong(-5_000, 5_000)
+            val before = outbox.pending()
+            val sample = outbox.acquire(fix(sharing.grantedAt.plusMillis(offset)), sharing, "ra-1")
+            assertEquals("offset $offset", offset >= 0, sample != null)
+            assertEquals(before + if (offset >= 0) 1 else 0, outbox.pending())
+        }
+        assertEquals(outbox.pending().toLong(), outbox.acquire(fix(), sharing, "ra-1")!!.deviceSequence - 1)
     }
 
     @Test

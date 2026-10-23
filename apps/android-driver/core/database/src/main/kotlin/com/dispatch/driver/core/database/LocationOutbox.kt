@@ -31,8 +31,13 @@ class LocationOutbox(
 ) {
     private val dao = database.outbox()
 
-    /** Stores [fix] signed, or returns null when no device is registered: the server takes only signed samples. */
+    /**
+     * Stores [fix] signed, or returns null when no device is registered (the
+     * server takes only signed samples) or when [sharing] does not cover the
+     * fix (Section 23.2: nothing from before consent).
+     */
     suspend fun acquire(fix: LocationFix, sharing: Sharing, roleAssignmentId: String): LocationSample? {
+        if (!sharing.covers(fix.occurredAt)) return null
         val device = signer.current() ?: return null
         val now = clock()
         return database.withTransaction {

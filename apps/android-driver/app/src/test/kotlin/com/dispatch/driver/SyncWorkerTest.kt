@@ -31,6 +31,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.Instant
 
+private val granted: java.time.Instant = java.time.Instant.parse("2026-10-23T10:00:00Z")
+
 @RunWith(RobolectricTestRunner::class)
 class SyncWorkerTest {
 
@@ -92,7 +94,7 @@ class SyncWorkerTest {
     // with the next session.
     @Test
     fun `queued location samples drain with the declarations`() = runTest {
-        samples.acquire(fix, Sharing("trip-1", "g-1"), "ra-1")
+        samples.acquire(fix, Sharing("trip-1", "g-1", granted), "ra-1")
         val stored = StatusTransport { d, _ -> SubmitResult.Stored(CurrentStatus(d.status, "PARTICIPANT", d.occurredAt)) }
 
         assertEquals(ListenableWorker.Result.success(), worker(transport = stored).doWork())
@@ -101,7 +103,7 @@ class SyncWorkerTest {
 
     @Test
     fun `a sample still pending is a retry, even with no declaration left`() = runTest {
-        samples.acquire(fix, Sharing("trip-1", "g-1"), "ra-1")
+        samples.acquire(fix, Sharing("trip-1", "g-1", granted), "ra-1")
         sampleTransport = SampleTransport { _, _ -> UploadResult.Unreachable }
         val stored = StatusTransport { d, _ -> SubmitResult.Stored(CurrentStatus(d.status, "PARTICIPANT", d.occurredAt)) }
 

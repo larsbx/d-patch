@@ -17,6 +17,8 @@ import java.util.Base64
 import kotlin.math.abs
 import kotlin.random.Random
 
+private val granted: java.time.Instant = java.time.Instant.parse("2026-10-23T10:00:00Z")
+
 /**
  * A sample as biz-kit verifies it (ADR-0013): fixed-point fields, signed over
  * `DispatchLocationSampleV1`, byte for byte the shared `location_sample` vector.
@@ -49,7 +51,7 @@ class LocationSampleTest {
     private val sample = LocationSample.of(
         fix,
         sampleId = fields.text("sample_id"),
-        sharing = Sharing(assignmentId = fields.text("assignment_id"), consentGrantId = fields.text("consent_grant_id")),
+        sharing = Sharing(assignmentId = fields.text("assignment_id"), consentGrantId = fields.text("consent_grant_id"), grantedAt = granted),
         deviceSequence = fields.getValue("device_sequence").jsonPrimitive.long,
     )
 
@@ -74,7 +76,7 @@ class LocationSampleTest {
 
     @Test
     fun `optional measurements are left out, not sent as null`() {
-        val bare = LocationSample.of(fix.copy(speedMps = null, bearingDeg = null), "s", Sharing("a", "c"), 1)
+        val bare = LocationSample.of(fix.copy(speedMps = null, bearingDeg = null), "s", Sharing("a", "c", granted), 1)
         val body = Json.parseToJsonElement(bare.signedBy(device).toCanonicalJson()).jsonObject
 
         assertTrue(body.keys.none { it == "speed_cmps" || it == "bearing_cdeg" })
@@ -89,7 +91,7 @@ class LocationSampleTest {
             val lat = random.nextDouble(-90.0, 90.0)
             val lng = random.nextDouble(-180.0, 180.0)
             val accuracy = random.nextDouble(0.0, 5_000.0)
-            val s = LocationSample.of(fix.copy(lat = lat, lng = lng, accuracyM = accuracy), "s", Sharing("a", "c"), 1)
+            val s = LocationSample.of(fix.copy(lat = lat, lng = lng, accuracyM = accuracy), "s", Sharing("a", "c", granted), 1)
 
             assertTrue("$lat", abs(s.latE7 / 1e7 - lat) <= 0.5e-7 + 1e-15)
             assertTrue("$lng", abs(s.lngE7 / 1e7 - lng) <= 0.5e-7 + 1e-15)
@@ -100,7 +102,7 @@ class LocationSampleTest {
     @Test
     fun `the poles and the antimeridian fit their integers`() {
         for ((lat, lng) in listOf(90.0 to 180.0, -90.0 to -180.0)) {
-            val s = LocationSample.of(fix.copy(lat = lat, lng = lng), "s", Sharing("a", "c"), 1)
+            val s = LocationSample.of(fix.copy(lat = lat, lng = lng), "s", Sharing("a", "c", granted), 1)
             assertEquals(Math.round(lat * 1e7), s.latE7)
             assertEquals(Math.round(lng * 1e7), s.lngE7)
         }

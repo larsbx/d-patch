@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -88,7 +89,7 @@ class SharingSessions {
 /** [SharingRunner] as the foreground service: started by intent, stopped at once through [sessions]. */
 class ServiceSharingRunner(private val context: Context, private val sessions: SharingSessions) : SharingRunner {
     override fun start(sharing: Sharing, roleAssignmentId: String) {
-        val record = SharingRecord(sharing.assignmentId, sharing.consentGrantId, roleAssignmentId)
+        val record = SharingRecord(sharing.assignmentId, sharing.consentGrantId, sharing.grantedAt, roleAssignmentId)
         ContextCompat.startForegroundService(context, LocationSharingService.start(context, record))
     }
 
@@ -174,14 +175,16 @@ class LocationSharingService : Service() {
             Intent(context, LocationSharingService::class.java).setAction(ACTION_START)
                 .putExtra("assignment_id", record.assignmentId)
                 .putExtra("consent_grant_id", record.consentGrantId)
+                .putExtra("granted_at", record.grantedAt.toString())
                 .putExtra("role_assignment_id", record.roleAssignmentId)
 
         /** The consent a start intent carries, or null when it carries none. */
         fun recordOf(intent: Intent): SharingRecord? {
             val assignment = intent.getStringExtra("assignment_id") ?: return null
             val grant = intent.getStringExtra("consent_grant_id") ?: return null
+            val grantedAt = intent.getStringExtra("granted_at") ?: return null
             val role = intent.getStringExtra("role_assignment_id") ?: return null
-            return SharingRecord(assignment, grant, role)
+            return SharingRecord(assignment, grant, Instant.parse(grantedAt), role)
         }
     }
 }

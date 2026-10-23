@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.system.measureTimeMillis
 import com.dispatch.driver.core.model.location.Sharing
 
+private val granted: java.time.Instant = java.time.Instant.parse("2026-10-23T10:00:00Z")
+
 /** Consent, sample upload and the demand stream (Sections 24.2, 25.3; ADR-0014), against a real socket. */
 class LocationClientTest {
 
@@ -50,7 +52,7 @@ class LocationClientTest {
     private fun sample(n: Int) = LocationSample.of(
         LocationFix(51.5, -0.12, 8.0, null, null, "fused", false, Instant.parse("2026-10-23T10:00:00Z")),
         sampleId = "sample-$n",
-        sharing = Sharing("trip-1", "grant-1"),
+        sharing = Sharing("trip-1", "grant-1", granted),
         deviceSequence = n.toLong(),
     ).signedBy(device)
 

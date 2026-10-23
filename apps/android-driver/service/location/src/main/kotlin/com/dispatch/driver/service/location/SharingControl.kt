@@ -4,6 +4,7 @@ import com.dispatch.driver.core.model.location.Sharing
 import com.dispatch.driver.core.network.Fetch
 import com.dispatch.driver.core.network.LocationConsent
 import com.dispatch.driver.core.network.Trip
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -13,10 +14,11 @@ import java.util.UUID
 data class SharingRecord(
     val assignmentId: String,
     val consentGrantId: String,
+    val grantedAt: Instant,
     val roleAssignmentId: String,
     val pendingRevoke: Boolean = false,
 ) {
-    val sharing: Sharing get() = Sharing(assignmentId, consentGrantId)
+    val sharing: Sharing get() = Sharing(assignmentId, consentGrantId, grantedAt)
 }
 
 /** Where the record survives a restart. */
@@ -101,7 +103,7 @@ class SharingControl(
                 is Fetch.Problem -> return StartResult.Refused
                 Fetch.Unreachable -> return StartResult.Unreachable
             }
-        val record = SharingRecord(trip.assignmentId, consent.consentGrantId, roleAssignmentId)
+        val record = SharingRecord(trip.assignmentId, consent.consentGrantId, Instant.parse(consent.grantedAt), roleAssignmentId)
         records.write(record)
         runner.start(record.sharing, roleAssignmentId)
         return StartResult.Sharing

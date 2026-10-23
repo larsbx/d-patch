@@ -11,6 +11,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
 
+private val granted: java.time.Instant = java.time.Instant.parse("2026-10-23T10:00:00Z")
+
 /**
  * Beginning, stopping and resuming sharing (Section 25.3): consent first, a
  * visible session, and after a restart "resumes only if the persisted consent
@@ -18,16 +20,16 @@ import kotlin.random.Random
  */
 class SharingControlTest {
 
-    private fun consent(id: String, trip: String, revoked: String? = null) = LocationConsent(id, trip, "t", null, revoked)
+    private fun consent(id: String, trip: String, revoked: String? = null) = LocationConsent(id, trip, "2026-10-23T10:00:00Z", null, revoked)
     private fun trip(id: String, consent: LocationConsent? = null) = Trip(id, "load-$id", "ACTIVE", "t", null, consent)
-    private val record = SharingRecord(assignmentId = "trip-1", consentGrantId = "g-1", roleAssignmentId = "ra-1")
+    private val record = SharingRecord(assignmentId = "trip-1", consentGrantId = "g-1", granted, roleAssignmentId = "ra-1")
 
     // ---- The resumption rule, as a function -------------------------------
 
     @Test
     fun `a confirmed consent resumes, anything else is forgotten or waited on`() {
         val confirmed = Fetch.Ok(listOf(trip("trip-1", consent("g-1", "trip-1"))))
-        assertEquals(Resumption.Resume(Sharing("trip-1", "g-1"), "ra-1"), Resumption.of(record, confirmed))
+        assertEquals(Resumption.Resume(Sharing("trip-1", "g-1", granted), "ra-1"), Resumption.of(record, confirmed))
 
         assertEquals(Resumption.Forget, Resumption.of(record, Fetch.Ok(emptyList())))
         assertEquals(Resumption.Forget, Resumption.of(record, Fetch.Ok(listOf(trip("trip-1")))))
@@ -46,7 +48,7 @@ class SharingControlTest {
         val ids = listOf("trip-1", "trip-2")
         val grants = listOf("g-1", "g-2")
         repeat(5_000) {
-            val persisted = if (random.nextInt(5) == 0) null else SharingRecord(ids.random(random), grants.random(random), "ra-1", random.nextInt(4) == 0)
+            val persisted = if (random.nextInt(5) == 0) null else SharingRecord(ids.random(random), grants.random(random), granted, "ra-1", random.nextInt(4) == 0)
             val answer: Fetch<List<Trip>> = when (random.nextInt(4)) {
                 0 -> Fetch.Unreachable
                 1 -> Fetch.Problem(listOf(401, 403, 500).random(random), null, null)
@@ -75,7 +77,7 @@ class SharingControlTest {
     private class Fakes {
         val log = mutableListOf<String>()
         var stored: SharingRecord? = null
-        var revokeAnswer: Fetch<LocationConsent> = Fetch.Ok(LocationConsent("g-1", "trip-1", "t", null, "now"))
+        var revokeAnswer: Fetch<LocationConsent> = Fetch.Ok(LocationConsent("g-1", "trip-1", "2026-10-23T10:00:00Z", null, "now"))
         var tripsAnswer: Fetch<List<Trip>> = Fetch.Unreachable
         var running: Pair<Sharing, String>? = null
 
@@ -86,7 +88,7 @@ class SharingControlTest {
         val api = object : ConsentApi {
             override suspend fun begin(roleAssignmentId: String, assignmentId: String, idempotencyKey: String): Fetch<LocationConsent> {
                 log += "begin $assignmentId"
-                return Fetch.Ok(LocationConsent("g-1", assignmentId, "t", null, null))
+                return Fetch.Ok(LocationConsent("g-1", assignmentId, "2026-10-23T10:00:00Z", null, null))
             }
             override suspend fun revoke(roleAssignmentId: String, consentGrantId: String, idempotencyKey: String): Fetch<LocationConsent> {
                 log += "revoke $consentGrantId"
@@ -170,7 +172,7 @@ class SharingControlTest {
     fun `after a restart, a confirmed consent resumes and a stale one is forgotten`() = runTest {
         val f = Fakes().apply { stored = record; tripsAnswer = Fetch.Ok(listOf(trip("trip-1", consent("g-1", "trip-1")))) }
         f.control.resume()
-        assertEquals(Sharing("trip-1", "g-1") to "ra-1", f.running)
+        assertEquals(Sharing("trip-1", "g-1", granted) to "ra-1", f.running)
 
         val g = Fakes().apply { stored = record; tripsAnswer = Fetch.Ok(listOf(trip("trip-1"))) }
         g.control.resume()

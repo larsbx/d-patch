@@ -23,6 +23,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.Instant
 
+private val granted: java.time.Instant = java.time.Instant.parse("2026-10-23T10:00:00Z")
+
 /** The record on disk, and the outbox as a session's store. */
 @RunWith(RobolectricTestRunner::class)
 class AdaptersTest {
@@ -41,7 +43,7 @@ class AdaptersTest {
         val records = PrefsSharingRecords(prefs)
         assertNull(records.read())
 
-        val pending = SharingRecord("trip-1", "g-1", "ra-1", pendingRevoke = true)
+        val pending = SharingRecord("trip-1", "g-1", granted, "ra-1", pendingRevoke = true)
         records.write(pending)
         assertEquals(pending, PrefsSharingRecords(prefs).read())
 
@@ -64,7 +66,7 @@ class AdaptersTest {
             UploadResult.Answered(batch.associate { it.sampleId to SampleVerdict("ACCEPTED", null) })
         }
         val device = SigningDevice("device-1", DeviceKey.fromSeed(ByteArray(32) { 1 }))
-        val store = OutboxSampleStore(LocationOutbox(database, signer = { device }), transport, SharingRecord("trip-1", "g-1", "ra-1")) { syncRequests++ }
+        val store = OutboxSampleStore(LocationOutbox(database, signer = { device }), transport, SharingRecord("trip-1", "g-1", granted, "ra-1")) { syncRequests++ }
 
         assertTrue(store.acquire(LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))))
         store.sync()
@@ -76,7 +78,7 @@ class AdaptersTest {
 
     @Test
     fun `without a registered device the store acquires nothing`() = runTest {
-        val store = OutboxSampleStore(LocationOutbox(database, signer = { null }), { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", "ra-1")) { syncRequests++ }
+        val store = OutboxSampleStore(LocationOutbox(database, signer = { null }), { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", granted, "ra-1")) { syncRequests++ }
         assertFalse(store.acquire(LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))))
     }
 
@@ -87,7 +89,7 @@ class AdaptersTest {
         val device = SigningDevice("device-1", DeviceKey.fromSeed(ByteArray(32) { 1 }))
         val outbox = LocationOutbox(database, signer = { device })
         val fix = LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))
-        val offline = OutboxSampleStore(outbox, { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", "ra-1")) { syncRequests++ }
+        val offline = OutboxSampleStore(outbox, { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", granted, "ra-1")) { syncRequests++ }
 
         offline.acquire(fix)
         offline.sync()
@@ -96,7 +98,7 @@ class AdaptersTest {
         val online = OutboxSampleStore(
             outbox,
             { _, batch -> UploadResult.Answered(batch.associate { it.sampleId to SampleVerdict("ACCEPTED", null) }) },
-            SharingRecord("trip-1", "g-1", "ra-1"),
+            SharingRecord("trip-1", "g-1", granted, "ra-1"),
         ) { syncRequests++ }
         outbox.retryNow()
         online.sync()

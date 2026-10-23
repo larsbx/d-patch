@@ -24,7 +24,14 @@ data class LocationFix(
 )
 
 /** What a sample is shared under: the trip and the consent covering it (Section 25.3). */
-data class Sharing(val assignmentId: String, val consentGrantId: String)
+data class Sharing(val assignmentId: String, val consentGrantId: String, val grantedAt: Instant) {
+    /**
+     * Whether the consent covers a fix taken [at]: from the grant on, as the
+     * server's `ConsentGrant.covers?` reads it. Expiry and revocation are the
+     * server's to judge; a session ends with them.
+     */
+    fun covers(at: Instant): Boolean = !at.isBefore(grantedAt)
+}
 
 /**
  * One item of `POST /v1/me/location-samples:batch` (Section 24.2), as queued.
