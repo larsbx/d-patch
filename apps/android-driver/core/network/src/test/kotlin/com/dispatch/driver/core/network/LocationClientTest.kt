@@ -58,6 +58,27 @@ class LocationClientTest {
     fun stop() = server.shutdown()
 
     @Test
+    fun `the caller's trips come with the consent covering each`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"assignments":[{"assignment_id":"trip-1","load_id":"load-1","status":"ACTIVE","starts_at":"2026-10-23T08:00:00Z",""" +
+                    """"ends_at":null,"location_consent":{"consent_grant_id":"g-1","assignment_id":"trip-1","granted_at":"t",""" +
+                    """"expires_at":null,"revoked_at":null}},{"assignment_id":"trip-2","load_id":"load-2","status":"PLANNED",""" +
+                    """"starts_at":"2026-10-24T08:00:00Z","ends_at":null,"location_consent":null}]}""",
+            ),
+        )
+
+        val trips = (client.assignments("ra-1") as Fetch.Ok).value
+
+        assertEquals(listOf("trip-1", "trip-2"), trips.map { it.assignmentId })
+        assertEquals("g-1", trips[0].locationConsent?.consentGrantId)
+        assertEquals(null, trips[1].locationConsent)
+        val request = server.takeRequest()
+        assertEquals("/v1/me/assignments", request.path)
+        assertEquals("ra-1", request.getHeader("X-Role-Assignment-ID"))
+    }
+
+    @Test
     fun `consent is begun for a trip, under the assignment and an idempotency key`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(201).setBody(

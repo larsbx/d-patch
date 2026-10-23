@@ -101,6 +101,8 @@ class ContractConformanceTest {
         assertResponse(LocationConsent.serializer(), "LocationConsent")
         assertResponse(SampleResultsBody.serializer(), "LocationSampleResults")
         assertResponse(DemandPolicyBody.serializer(), "LocationDemandPolicy")
+        assertResponse(TripsBody.serializer(), "TripList")
+        assertResponse(Trip.serializer(), "Trip")
 
         // The results' items are an inline schema.
         val item = schema("LocationSampleResults")["properties"]!!.jsonObject["results"]!!.jsonObject["items"]!!.jsonObject
@@ -125,6 +127,7 @@ class ContractConformanceTest {
         assertTrue(headers("/v1/me/location-consents/{consent_id}/revoke", "post").containsAll(setOf("idempotency-key", "x-role-assignment-id")))
         assertTrue(headers("/v1/me/location-samples:batch", "post").containsAll(setOf("idempotency-key", "x-role-assignment-id")))
         assertTrue(headers("/v1/me/location-demand", "get").contains("x-role-assignment-id"))
+        assertTrue(headers("/v1/me/assignments", "get").contains("x-role-assignment-id"))
         assertTrue(paths["/v1/me/location-demand"]!!.jsonObject["get"]!!.jsonObject["responses"]!!.jsonObject["200"]!!
             .jsonObject["content"]!!.jsonObject.containsKey("text/event-stream"))
     }

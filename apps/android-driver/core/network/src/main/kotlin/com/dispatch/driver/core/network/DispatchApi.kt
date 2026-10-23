@@ -61,4 +61,7 @@ internal interface DispatchApi {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: RequestBody,
     ): Response<ResponseBody>
+
+    @GET("v1/me/assignments")
+    suspend fun assignments(@Header("X-Role-Assignment-ID") roleAssignmentId: String): Response<ResponseBody>
 }

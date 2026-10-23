@@ -83,6 +83,15 @@ class DispatchClient internal constructor(
             )
         }
 
+    /** `GET /v1/me/assignments`: the caller's trips not yet over, soonest first, each with its covering consent. */
+    suspend fun assignments(roleAssignmentId: String): Fetch<List<Trip>> =
+        call(
+            request = { api.assignments(roleAssignmentId) },
+            onSuccess = { Fetch.Ok(json.decodeFromString(TripsBody.serializer(), it).assignments) },
+            onProblem = { status, problem -> Fetch.Problem(status, problem?.code, problem?.detail) },
+            onUnreachable = { Fetch.Unreachable },
+        )
+
     /** `POST /v1/me/location-consents` (Section 25.3): sharing begins for one of the caller's own trips. */
     suspend fun beginLocationConsent(roleAssignmentId: String, assignmentId: String, idempotencyKey: String): Fetch<LocationConsent> =
         fetch {
@@ -272,6 +281,20 @@ data class LocationConsent(
     @SerialName("expires_at") val expiresAt: String? = null,
     @SerialName("revoked_at") val revokedAt: String? = null,
 )
+
+/** One of the caller's trips (biz-kit `Trip`); [locationConsent] is the consent covering it now, if any. */
+@Serializable
+data class Trip(
+    @SerialName("assignment_id") val assignmentId: String,
+    @SerialName("load_id") val loadId: String,
+    val status: String,
+    @SerialName("starts_at") val startsAt: String,
+    @SerialName("ends_at") val endsAt: String? = null,
+    @SerialName("location_consent") val locationConsent: LocationConsent? = null,
+)
+
+@Serializable
+internal data class TripsBody(val assignments: List<Trip>)
 
 /** One sample's answer: `ACCEPTED`, `DUPLICATE` or `REJECTED` with its code (Section 24.2). */
 @Serializable
