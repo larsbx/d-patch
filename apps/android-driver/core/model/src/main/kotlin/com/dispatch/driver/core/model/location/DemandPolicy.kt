@@ -1,9 +1,10 @@
 package com.dispatch.driver.core.model.location
 
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.longOrNull
 
 /**
  * How often to sample and upload until told otherwise (ADR-0014): the `data`
@@ -26,9 +27,21 @@ data class DemandPolicy(val mode: Mode, val sampleIntervalMs: Long, val uploadIn
         /** The policy in [data], or null when it cannot be applied as sent; unknown fields are ignored. */
         fun parse(data: String): DemandPolicy? = runCatching {
             val fields = Json.parseToJsonElement(data) as JsonObject
-            fun integer(key: String) = (fields[key] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull
-            val mode = Mode.entries.single { (fields["mode"] as JsonPrimitive).content == it.wire }
-            DemandPolicy(mode, integer("sample_interval_ms")!!, integer("upload_interval_ms")!!)
+            // The decoder would read a quoted interval as a number; the contract says number.
+            require(INTERVALS.none { (fields[it] as? JsonPrimitive)?.isString == true })
+            val body = json.decodeFromJsonElement(DemandPolicyBody.serializer(), fields)
+            DemandPolicy(Mode.entries.single { it.wire == body.mode }, body.sampleIntervalMs, body.uploadIntervalMs)
         }.getOrNull()
+
+        private val json = Json { ignoreUnknownKeys = true }
+        private val INTERVALS = listOf("sample_interval_ms", "upload_interval_ms")
     }
 }
+
+/** The wire shape of a `location-demand` event's `data` (biz-kit `LocationDemandPolicy`). */
+@Serializable
+data class DemandPolicyBody(
+    val mode: String,
+    @SerialName("sample_interval_ms") val sampleIntervalMs: Long,
+    @SerialName("upload_interval_ms") val uploadIntervalMs: Long,
+)

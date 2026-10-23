@@ -1,6 +1,8 @@
 package com.dispatch.driver.core.network
 
 import com.dispatch.driver.core.model.capability.SignedDocument
+import com.dispatch.driver.core.model.location.DemandPolicyBody
+import com.dispatch.driver.core.model.location.LocationSample
 import com.dispatch.driver.core.model.status.CurrentStatus
 import com.dispatch.driver.core.model.status.StatusDeclaration
 import kotlinx.serialization.KSerializer
@@ -9,6 +11,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -81,6 +84,32 @@ class ContractConformanceTest {
         assertNamesExist(ProblemBody.serializer(), "Problem")
     }
 
+    // A sample is built before it is signed, so the type leaves the device
+    // fields optional; `uploadSamples` refuses one without them.
+    @Test
+    fun `a signed sample is a valid LocationSampleItem`() {
+        assertNamesExist(LocationSample.serializer(), "LocationSampleItem")
+        val missing = required("LocationSampleItem") - fields(LocationSample.serializer()).filterValues { it }.keys
+        assertEquals(setOf("device_id", "device_signature"), missing)
+    }
+
+    @Test
+    fun `location requests send and responses read only what the contract says`() {
+        assertNamesExist(LocationConsentRequest.serializer(), "LocationConsentRequest")
+        assertEquals(required("LocationConsentRequest"), fields(LocationConsentRequest.serializer()).filterValues { it }.keys)
+        assertNamesExist(SampleBatchBody.serializer(), "LocationSampleBatch")
+        assertResponse(LocationConsent.serializer(), "LocationConsent")
+        assertResponse(SampleResultsBody.serializer(), "LocationSampleResults")
+        assertResponse(DemandPolicyBody.serializer(), "LocationDemandPolicy")
+
+        // The results' items are an inline schema.
+        val item = schema("LocationSampleResults")["properties"]!!.jsonObject["results"]!!.jsonObject["items"]!!.jsonObject
+        val itemFields = fields(SampleResult.serializer())
+        assertTrue(item["properties"]!!.jsonObject.keys.containsAll(itemFields.keys))
+        val promised = item["required"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet()
+        assertTrue(promised.containsAll(itemFields.filterValues { it }.keys))
+    }
+
     @Test
     fun `every route and header the client uses is in the contract`() {
         val paths = contract["paths"]!!.jsonObject
@@ -92,5 +121,11 @@ class ContractConformanceTest {
         assertTrue(headers("/v1/role-capabilities", "get").contains("x-role-assignment-id"))
         assertTrue(headers("/v1/me/devices", "post").contains("x-role-assignment-id"))
         assertTrue(paths["/v1/me/role-assignments"]!!.jsonObject.containsKey("get"))
+        assertTrue(headers("/v1/me/location-consents", "post").containsAll(setOf("idempotency-key", "x-role-assignment-id")))
+        assertTrue(headers("/v1/me/location-consents/{consent_id}/revoke", "post").containsAll(setOf("idempotency-key", "x-role-assignment-id")))
+        assertTrue(headers("/v1/me/location-samples:batch", "post").containsAll(setOf("idempotency-key", "x-role-assignment-id")))
+        assertTrue(headers("/v1/me/location-demand", "get").contains("x-role-assignment-id"))
+        assertTrue(paths["/v1/me/location-demand"]!!.jsonObject["get"]!!.jsonObject["responses"]!!.jsonObject["200"]!!
+            .jsonObject["content"]!!.jsonObject.containsKey("text/event-stream"))
     }
 }
