@@ -37,6 +37,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(projects.core.model)
     implementation(projects.core.database)
+    // The demand stream's events (ADR-0014).
+    implementation(projects.core.network)
     implementation(libs.work.runtime.ktx)
 
     testImplementation(libs.bundles.unit.test)
