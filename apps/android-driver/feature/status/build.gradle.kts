@@ -32,6 +32,14 @@ android {
         compose = true
     }
 
+    packaging {
+        resources {
+            // As in :app: BouncyCastle (via core:model) and jspecify both ship
+            // this OSGi descriptor; nothing here reads it.
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -45,11 +53,16 @@ dependencies {
     implementation(projects.core.designsystem)
     implementation(projects.core.model)
     implementation(projects.core.database)
+    // The location card's state and actions (Section 25.3).
+    implementation(projects.service.location)
+    implementation(projects.core.network)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    // The location permission request.
+    implementation(libs.androidx.activity.compose)
 
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)

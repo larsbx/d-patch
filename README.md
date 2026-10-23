@@ -253,13 +253,23 @@ first and releases the provider before the sealed batch is sent. Every module
 here was mutation-checked; each surviving mutation was answered with a
 sharper test.
 
+The app can now share for a trip end to end. `GET /v1/me/assignments` (biz-kit)
+lists the driver's trips not yet over, with the consent covering each. The
+status screen offers the trip under way: "Share location for this trip",
+after location (and notification) permission. Sharing runs in a foreground
+service of type `location`, with an ongoing notification and its
+`Stop sharing`. Stopping halts collection on the device before any network
+call, writes the owed revocation to disk first, and retries it until the
+server hears. After a restart the app resumes only when the server confirms
+the very consent it persisted (§25.3). A running session shows on every
+screen state, signed out included (§2.2).
+
 Next, in order:
 
-1. **Which trip to share for.** The app must name an assignment to consent
-   for, and `/v1` has no route for a participant's own trips yet (§24 does
-   not name one). Then the foreground service (`Stop sharing` notification,
-   `foregroundServiceType="location"`), the consent screen, and scenario 1's
-   "starts assignment sharing" on the emulator.
+1. **Scenario 1 on the emulator in CI.** `SharingAgainstTheStackTest` signs
+   in, shares, feeds a fix through the emulator's test provider, sees the
+   signed sample accepted, declares `EN_ROUTE_PICKUP`, and stops. It compiles
+   and runs in the emulator job, which runs on pull requests.
 2. **Geocoder and router ports with Google adapters behind contract tests**,
    and the portal map factory (§28): scenario 10 and the adapter contract
    tests in Slice 2's exit criterion.

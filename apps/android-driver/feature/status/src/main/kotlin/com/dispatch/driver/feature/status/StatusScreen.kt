@@ -1,5 +1,9 @@
 package com.dispatch.driver.feature.status
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,17 +32,42 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dispatch.driver.core.database.OutboxEntry
 import com.dispatch.driver.core.database.PendingState
 import com.dispatch.driver.core.model.capability.StatusOption
+import com.dispatch.driver.service.location.SharingCard
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
-fun StatusRoute(onSignIn: () -> Unit, viewModel: StatusViewModel = hiltViewModel()) {
+fun StatusRoute(
+    onSignIn: () -> Unit,
+    viewModel: StatusViewModel = hiltViewModel(),
+    location: LocationSharingViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
-    StatusScreen(state, error, onDeclare = viewModel::declare, onRefresh = viewModel::refreshCapabilities, onSignIn = onSignIn)
+    val sharing by location.card.collectAsStateWithLifecycle()
+    // Sharing needs fine location, and (API 33) the notification that shows it.
+    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.ACCESS_FINE_LOCATION] == true) location.share()
+    }
+    StatusScreen(
+        state,
+        error,
+        onDeclare = viewModel::declare,
+        onRefresh = viewModel::refreshCapabilities,
+        onSignIn = onSignIn,
+        sharing = sharing,
+        onShare = { permissions.launch(SHARING_PERMISSIONS) },
+        onStopSharing = location::stop,
+    )
 }
+
+private val SHARING_PERMISSIONS = listOfNotNull(
+    Manifest.permission.ACCESS_FINE_LOCATION,
+    Manifest.permission.ACCESS_COARSE_LOCATION,
+    Manifest.permission.POST_NOTIFICATIONS.takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU },
+).toTypedArray()
 
 /**
  * The status surface. Every choice on it comes from the capability document;
@@ -54,11 +83,16 @@ fun StatusScreen(
     onRefresh: () -> Unit,
     onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
+    sharing: SharingCard = SharingCard.Hidden,
+    onShare: () -> Unit = {},
+    onStopSharing: () -> Unit = {},
 ) {
     Column(
         modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Above everything else, in every state: sharing is never hidden (Section 2.2).
+        LocationSharingCard(sharing, onShare, onStopSharing)
         when (state) {
             StatusUiState.Loading -> Text("Loading your role…")
             StatusUiState.SignInRequired -> {

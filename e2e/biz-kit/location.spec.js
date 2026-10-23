@@ -26,6 +26,10 @@ async function sharingDriver(baseURL) {
   expect((await app.registerDevice()).status()).toBeLessThan(300);
   const consent = await app.beginLocationConsent(driver.trip_id);
   expect(consent.status).toBe(201);
+  // What the app reads to choose a trip, and to resume after a reboot (§25.3).
+  const { body } = await app.assignments();
+  const trip = body.assignments.find((a) => a.assignment_id === driver.trip_id);
+  expect(trip.location_consent?.consent_grant_id).toBe(consent.body.consent_grant_id);
   return { app, grantId: consent.body.consent_grant_id };
 }
 

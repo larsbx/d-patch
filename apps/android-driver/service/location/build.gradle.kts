@@ -25,6 +25,14 @@ android {
         jvmTarget = "17"
     }
 
+    packaging {
+        resources {
+            // As in :app: BouncyCastle (via core:model) and jspecify both ship
+            // this OSGi descriptor; nothing here reads it.
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true

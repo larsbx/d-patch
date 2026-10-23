@@ -126,6 +126,12 @@ export class FieldApp {
     return answers;
   }
 
+  /** The caller's trips not yet over, each with the consent covering it (or null). */
+  async assignments() {
+    const response = await this.http.get("/v1/me/assignments", { headers: this.headers() });
+    return { status: response.status(), body: await response.json() };
+  }
+
   /** Section 25.3: sharing begins with consent for one of one's own trips. */
   async beginLocationConsent(assignmentId) {
     const response = await this.http.post("/v1/me/location-consents", {

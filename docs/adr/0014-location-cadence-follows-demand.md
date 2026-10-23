@@ -54,8 +54,9 @@ an authorized person is consuming it, and event driven rather than polled.
 - The trickle is deliberately slower than §25.3's default: freshness ("last
   reported 4 min ago") stays meaningful for the roster at a fraction of the
   battery, and anyone who needs more opens the participant.
-- The Android foreground service (Slice 2's next part) consumes the stream;
-  until then `e2e/support/field-app.js` speaks it, and `location.spec.js`
-  covers trickle → realtime → live coordinates → trickle → closed.
+- The Android foreground service (`service:location`'s `LocationSharingService`)
+  consumes the stream through `SharingCadence`; `e2e/support/field-app.js`
+  speaks it too, and `location.spec.js` covers trickle → realtime → live
+  coordinates → trickle → closed.
 - Watch membership is cluster-wide (`:pg`), so a viewer and a device served
   by different nodes still find each other.

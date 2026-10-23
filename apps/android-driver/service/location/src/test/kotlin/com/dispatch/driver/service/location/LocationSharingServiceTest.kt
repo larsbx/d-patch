@@ -70,6 +70,11 @@ class LocationSharingServiceTest {
         )
 
         suspend fun remembered() = record
+
+        override fun onCreate() {
+            super.onCreate()
+            SharingHost.install(this)
+        }
     }
 
     private val host get() = ApplicationProvider.getApplicationContext<Host>()

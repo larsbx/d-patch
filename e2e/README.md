@@ -57,7 +57,7 @@ key, and the outbox across airplane mode. Start the stack with
 | Scenario | Online | After an offline interval | Where |
 | --- | --- | --- | --- |
 | 1 — sets `EN_ROUTE_PICKUP`, the portal patches without a reload | ✅ | ✅ queued, signed, sent in order; the latest made wins | `slice1.spec.js`, emulator |
-| 1 — starts assignment sharing | — | — | Slice 2 (location) |
+| 1 — starts assignment sharing | ✅ the trip and its consent (`assignments`) | — | `location.spec.js`; emulator: `SharingAgainstTheStackTest` (CI, on pull requests) |
 | 13 — the `DRIVER` assignment decides features and verdicts | ✅ | ✅ | `slice1.spec.js`, emulator |
 | 14 — a second role profile without branching: participant, device, assignment, status | ✅ | ✅ (emulator) | `slice1.spec.js`, emulator as courier |
 | 14 — consent, location, approval and communications resources | — | — | Slices 2, 4, 5 |

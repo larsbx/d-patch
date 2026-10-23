@@ -26,13 +26,27 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicReference
 
-/** What the service needs from the app: implemented by its `Application`, so this module needs no DI framework. */
+/**
+ * What the service needs from the app, so this module needs no DI framework.
+ * The app installs one in `Application.onCreate`, which runs before any
+ * service of the process starts; an instrumented test installs the same.
+ */
 interface SharingHost {
     val sessions: SharingSessions
     val sharingControl: SharingControl
 
     /** A session bound to [record]'s consent: its outbox, the platform provider, the demand stream. */
     fun sharingSession(record: SharingRecord): LocationSharing
+
+    companion object {
+        @Volatile private var installed: SharingHost? = null
+
+        fun install(host: SharingHost) {
+            installed = host
+        }
+
+        val current: SharingHost get() = checkNotNull(installed) { "No SharingHost installed: Application.onCreate installs it" }
+    }
 }
 
 /**
@@ -91,7 +105,7 @@ class LocationSharingService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var session: Job? = null
-    private val host get() = application as SharingHost
+    private val host get() = SharingHost.current
 
     override fun onBind(intent: Intent?): IBinder? = null
 
