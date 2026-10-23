@@ -43,4 +43,5 @@ dependencies {
 
     testImplementation(libs.bundles.unit.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }
