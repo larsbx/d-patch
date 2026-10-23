@@ -80,6 +80,7 @@ object Canonical {
 object DeviceStatements {
     const val REGISTRATION = "DispatchDeviceRegistrationV1"
     const val EVENT = "DispatchStatusEventV1"
+    const val SAMPLE = "DispatchLocationSampleV1"
 
     /** Proves this installation holds [publicKey], for the participant the capability document names. */
     fun registration(tenantId: String, participantId: String, installationId: String, publicKey: ByteArray): ByteArray =
@@ -94,7 +95,13 @@ object DeviceStatements {
         )
 
     /** [fields]: the body exactly as it will be sent, without `device_signature`. */
-    fun event(fields: JsonObject): ByteArray = Canonical.encode(term(fields) as Map<*, *> + ("schema" to EVENT))
+    fun event(fields: JsonObject): ByteArray = body(EVENT, fields)
+
+    /** [fields]: a location sample exactly as it will be sent, without `device_signature`. */
+    fun sample(fields: JsonObject): ByteArray = body(SAMPLE, fields)
+
+    private fun body(schema: String, fields: JsonObject): ByteArray =
+        Canonical.encode(term(fields) as Map<*, *> + ("schema" to schema))
 
     private fun term(json: JsonElement): Any? = when (json) {
         JsonNull -> null
