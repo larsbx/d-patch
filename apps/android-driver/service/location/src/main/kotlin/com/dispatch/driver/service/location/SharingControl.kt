@@ -9,17 +9,16 @@ import java.util.UUID
 
 /**
  * What this device remembers having begun: the consent it shares under, and
- * whether it still owes the server a revocation.
+ * whether it still owes the server a revocation. Identifiers only: what a
+ * session shares under ([Sharing], with the grant's start) is always the
+ * server's latest word, so a record kept by an older build still reads.
  */
 data class SharingRecord(
     val assignmentId: String,
     val consentGrantId: String,
-    val grantedAt: Instant,
     val roleAssignmentId: String,
     val pendingRevoke: Boolean = false,
-) {
-    val sharing: Sharing get() = Sharing(assignmentId, consentGrantId, grantedAt)
-}
+)
 
 /** Where the record survives a restart. */
 interface SharingRecords {
@@ -66,14 +65,15 @@ sealed interface Resumption {
             record == null -> Idle
             record.pendingRevoke -> RetryRevoke(record.consentGrantId)
             trips !is Fetch.Ok -> Wait
-            confirms(trips.value, record) -> Resume(record.sharing, record.roleAssignmentId)
-            else -> Forget
+            else -> confirmed(trips.value, record)?.let { Resume(it, record.roleAssignmentId) } ?: Forget
         }
 
-        private fun confirms(trips: List<Trip>, record: SharingRecord): Boolean =
-            trips.any { trip ->
-                trip.assignmentId == record.assignmentId &&
-                    trip.locationConsent?.let { it.consentGrantId == record.consentGrantId && it.revokedAt == null } == true
+        /** [record]'s consent as the server confirms it, still open, or null. */
+        private fun confirmed(trips: List<Trip>, record: SharingRecord): Sharing? =
+            trips.firstNotNullOfOrNull { trip ->
+                trip.locationConsent
+                    ?.takeIf { trip.assignmentId == record.assignmentId && it.consentGrantId == record.consentGrantId && it.revokedAt == null }
+                    ?.sharing()
             }
     }
 }
@@ -103,9 +103,8 @@ class SharingControl(
                 is Fetch.Problem -> return StartResult.Refused
                 Fetch.Unreachable -> return StartResult.Unreachable
             }
-        val record = SharingRecord(trip.assignmentId, consent.consentGrantId, Instant.parse(consent.grantedAt), roleAssignmentId)
-        records.write(record)
-        runner.start(record.sharing, roleAssignmentId)
+        records.write(SharingRecord(trip.assignmentId, consent.consentGrantId, roleAssignmentId))
+        runner.start(consent.sharing(), roleAssignmentId)
         return StartResult.Sharing
     }
 
@@ -140,3 +139,6 @@ class SharingControl(
         }
     }
 }
+
+/** What the server granted, as a session shares under it. */
+internal fun LocationConsent.sharing(): Sharing = Sharing(assignmentId, consentGrantId, Instant.parse(grantedAt))

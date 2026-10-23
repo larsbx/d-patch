@@ -11,6 +11,7 @@ import com.dispatch.driver.core.model.location.LocationFix
 import com.dispatch.driver.core.model.location.LocationSample
 import com.dispatch.driver.core.model.location.SampleTransport
 import com.dispatch.driver.core.model.location.SampleVerdict
+import com.dispatch.driver.core.model.location.Sharing
 import com.dispatch.driver.core.model.location.UploadResult
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -43,12 +44,26 @@ class AdaptersTest {
         val records = PrefsSharingRecords(prefs)
         assertNull(records.read())
 
-        val pending = SharingRecord("trip-1", "g-1", granted, "ra-1", pendingRevoke = true)
+        val pending = SharingRecord("trip-1", "g-1", "ra-1", pendingRevoke = true)
         records.write(pending)
         assertEquals(pending, PrefsSharingRecords(prefs).read())
 
         records.write(null)
         assertNull(PrefsSharingRecords(prefs).read())
+    }
+
+    // A device upgraded mid-stop still owes the server its revocation: a record
+    // an older build wrote (identifiers and the flag, nothing else) must read.
+    @Test
+    fun `a record an older build wrote still reads, pending revoke included`() = runTest {
+        val prefs = context.getSharedPreferences("sharing-legacy", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("assignment_id", "trip-1")
+            .putString("consent_grant_id", "g-1")
+            .putString("role_assignment_id", "ra-1")
+            .putBoolean("pending_revoke", true)
+            .commit()
+        assertEquals(SharingRecord("trip-1", "g-1", "ra-1", pendingRevoke = true), PrefsSharingRecords(prefs).read())
     }
 
     @Test
@@ -66,7 +81,7 @@ class AdaptersTest {
             UploadResult.Answered(batch.associate { it.sampleId to SampleVerdict("ACCEPTED", null) })
         }
         val device = SigningDevice("device-1", DeviceKey.fromSeed(ByteArray(32) { 1 }))
-        val store = OutboxSampleStore(LocationOutbox(database, signer = { device }), transport, SharingRecord("trip-1", "g-1", granted, "ra-1")) { syncRequests++ }
+        val store = OutboxSampleStore(LocationOutbox(database, signer = { device }), transport, SessionConsent(Sharing("trip-1", "g-1", granted), "ra-1")) { syncRequests++ }
 
         assertTrue(store.acquire(LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))))
         store.sync()
@@ -78,7 +93,7 @@ class AdaptersTest {
 
     @Test
     fun `without a registered device the store acquires nothing`() = runTest {
-        val store = OutboxSampleStore(LocationOutbox(database, signer = { null }), { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", granted, "ra-1")) { syncRequests++ }
+        val store = OutboxSampleStore(LocationOutbox(database, signer = { null }), { _, _ -> UploadResult.Unreachable }, SessionConsent(Sharing("trip-1", "g-1", granted), "ra-1")) { syncRequests++ }
         assertFalse(store.acquire(LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))))
     }
 
@@ -89,7 +104,7 @@ class AdaptersTest {
         val device = SigningDevice("device-1", DeviceKey.fromSeed(ByteArray(32) { 1 }))
         val outbox = LocationOutbox(database, signer = { device })
         val fix = LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))
-        val offline = OutboxSampleStore(outbox, { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", granted, "ra-1")) { syncRequests++ }
+        val offline = OutboxSampleStore(outbox, { _, _ -> UploadResult.Unreachable }, SessionConsent(Sharing("trip-1", "g-1", granted), "ra-1")) { syncRequests++ }
 
         offline.acquire(fix)
         offline.sync()
@@ -98,7 +113,7 @@ class AdaptersTest {
         val online = OutboxSampleStore(
             outbox,
             { _, batch -> UploadResult.Answered(batch.associate { it.sampleId to SampleVerdict("ACCEPTED", null) }) },
-            SharingRecord("trip-1", "g-1", granted, "ra-1"),
+            SessionConsent(Sharing("trip-1", "g-1", granted), "ra-1"),
         ) { syncRequests++ }
         outbox.retryNow()
         online.sync()

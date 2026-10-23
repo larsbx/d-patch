@@ -64,7 +64,7 @@ class LocationSharingServiceTest {
             )
         }
 
-        override fun sharingSession(record: SharingRecord) = LocationSharing(
+        override fun sharingSession(consent: SessionConsent) = LocationSharing(
             fixes = {
                 flow {
                     log += "fixes"
@@ -90,13 +90,14 @@ class LocationSharingServiceTest {
     }
 
     private val host get() = ApplicationProvider.getApplicationContext<Host>()
-    private val record = SharingRecord("trip-1", "g-1", granted, "ra-1")
+    private val record = SharingRecord("trip-1", "g-1", "ra-1")
+    private val consent = SessionConsent(Sharing("trip-1", "g-1", granted), "ra-1")
 
     @Before
     fun clear() = host.log.clear()
 
     private fun started() =
-        Robolectric.buildService(LocationSharingService::class.java, LocationSharingService.start(host, record)).create().startCommand(0, 1)
+        Robolectric.buildService(LocationSharingService::class.java, LocationSharingService.start(host, consent)).create().startCommand(0, 1)
 
     @Test
     fun `sharing runs in the foreground, for location, with Stop sharing on its notification`() {
@@ -190,6 +191,6 @@ class LocationSharingServiceTest {
         ServiceSharingRunner(host, host.sessions).start(Sharing("trip-1", "g-1", granted), "ra-1")
         val intent = shadowOf(host).nextStartedService
         assertEquals(LocationSharingService.ACTION_START, intent.action)
-        assertEquals(record, LocationSharingService.recordOf(intent))
+        assertEquals(consent, LocationSharingService.consentOf(intent))
     }
 }

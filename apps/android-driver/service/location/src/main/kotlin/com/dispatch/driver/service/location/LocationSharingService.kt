@@ -39,8 +39,8 @@ interface SharingHost {
     /** Emits when the app comes to the foreground: Section 25.3 uploads then. */
     val foreground: Flow<Unit>
 
-    /** A session bound to [record]'s consent: its outbox, the platform provider, the demand stream. */
-    fun sharingSession(record: SharingRecord): LocationSharing
+    /** A session bound to [consent]: its outbox, the platform provider, the demand stream. */
+    fun sharingSession(consent: SessionConsent): LocationSharing
 
     companion object {
         @Volatile private var installed: SharingHost? = null
@@ -86,11 +86,13 @@ class SharingSessions {
     }
 }
 
+/** What one session shares under, and the role it uploads as. */
+data class SessionConsent(val sharing: Sharing, val roleAssignmentId: String)
+
 /** [SharingRunner] as the foreground service: started by intent, stopped at once through [sessions]. */
 class ServiceSharingRunner(private val context: Context, private val sessions: SharingSessions) : SharingRunner {
     override fun start(sharing: Sharing, roleAssignmentId: String) {
-        val record = SharingRecord(sharing.assignmentId, sharing.consentGrantId, sharing.grantedAt, roleAssignmentId)
-        ContextCompat.startForegroundService(context, LocationSharingService.start(context, record))
+        ContextCompat.startForegroundService(context, LocationSharingService.start(context, SessionConsent(sharing, roleAssignmentId)))
     }
 
     override fun stop() = sessions.stop()
@@ -115,20 +117,20 @@ class LocationSharingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> recordOf(intent)?.let(::share) ?: stopSelf()
+            ACTION_START -> consentOf(intent)?.let(::share) ?: stopSelf()
             ACTION_STOP -> scope.launch { host.sharingControl.stop() }
             else -> stopSelf()
         }
         return START_NOT_STICKY
     }
 
-    private fun share(record: SharingRecord) {
+    private fun share(consent: SessionConsent) {
         ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
         if (session?.isActive == true) return
         val revoked = host.sessions.open()
         session = scope.launch {
             val end = try {
-                host.sharingSession(record).run(revoked, host.foreground)
+                host.sharingSession(consent).run(revoked, host.foreground)
             } finally {
                 host.sessions.close(revoked)
             }
@@ -171,20 +173,20 @@ class LocationSharingService : Service() {
         private const val CHANNEL = "location-sharing"
         private const val NOTIFICATION_ID = 25_3
 
-        fun start(context: Context, record: SharingRecord): Intent =
+        fun start(context: Context, consent: SessionConsent): Intent =
             Intent(context, LocationSharingService::class.java).setAction(ACTION_START)
-                .putExtra("assignment_id", record.assignmentId)
-                .putExtra("consent_grant_id", record.consentGrantId)
-                .putExtra("granted_at", record.grantedAt.toString())
-                .putExtra("role_assignment_id", record.roleAssignmentId)
+                .putExtra("assignment_id", consent.sharing.assignmentId)
+                .putExtra("consent_grant_id", consent.sharing.consentGrantId)
+                .putExtra("granted_at", consent.sharing.grantedAt.toString())
+                .putExtra("role_assignment_id", consent.roleAssignmentId)
 
         /** The consent a start intent carries, or null when it carries none. */
-        fun recordOf(intent: Intent): SharingRecord? {
+        fun consentOf(intent: Intent): SessionConsent? {
             val assignment = intent.getStringExtra("assignment_id") ?: return null
             val grant = intent.getStringExtra("consent_grant_id") ?: return null
             val grantedAt = intent.getStringExtra("granted_at") ?: return null
             val role = intent.getStringExtra("role_assignment_id") ?: return null
-            return SharingRecord(assignment, grant, Instant.parse(grantedAt), role)
+            return SessionConsent(Sharing(assignment, grant, Instant.parse(grantedAt)), role)
         }
     }
 }

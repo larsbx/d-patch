@@ -20,7 +20,7 @@ private val granted: java.time.Instant = java.time.Instant.parse("2026-10-23T10:
 class TripSharingTest {
 
     private fun trip(id: String, status: String = "PLANNED", consent: LocationConsent? = null) = Trip(id, "load-$id", status, "t", null, consent)
-    private val record = SharingRecord("trip-1", "g-1", granted, "ra-1")
+    private val record = SharingRecord("trip-1", "g-1", "ra-1")
 
     @Test
     fun `the card follows the capability, the trips and the session`() {
@@ -82,7 +82,7 @@ class TripSharingTest {
         model.share()
         runCurrent()
         assertEquals(SharingCard.Sharing, model.state.value)
-        assertEquals(SharingRecord("trip-1", "g-1", granted, "ra-1"), f.stored)
+        assertEquals(SharingRecord("trip-1", "g-1", "ra-1"), f.stored)
 
         model.stop()
         runCurrent()

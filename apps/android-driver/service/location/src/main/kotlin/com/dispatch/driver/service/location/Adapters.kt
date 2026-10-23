@@ -6,7 +6,6 @@ import com.dispatch.driver.core.database.SyncOutcome
 import com.dispatch.driver.core.model.capability.SyncRequester
 import com.dispatch.driver.core.model.location.LocationFix
 import com.dispatch.driver.core.model.location.SampleTransport
-import java.time.Instant
 
 /**
  * [SharingRecords] in shared preferences. Identifiers only, no position, so
@@ -17,9 +16,8 @@ class PrefsSharingRecords(private val prefs: SharedPreferences) : SharingRecords
     override suspend fun read(): SharingRecord? {
         val assignment = prefs.getString(ASSIGNMENT, null) ?: return null
         val grant = prefs.getString(GRANT, null) ?: return null
-        val grantedAt = prefs.getString(GRANTED_AT, null) ?: return null
         val role = prefs.getString(ROLE, null) ?: return null
-        return SharingRecord(assignment, grant, Instant.parse(grantedAt), role, prefs.getBoolean(PENDING_REVOKE, false))
+        return SharingRecord(assignment, grant, role, prefs.getBoolean(PENDING_REVOKE, false))
     }
 
     // `commit`, not `apply`: SharingControl orders "on disk" before "stopped".
@@ -30,7 +28,6 @@ class PrefsSharingRecords(private val prefs: SharedPreferences) : SharingRecords
             } else {
                 putString(ASSIGNMENT, record.assignmentId)
                 putString(GRANT, record.consentGrantId)
-                putString(GRANTED_AT, record.grantedAt.toString())
                 putString(ROLE, record.roleAssignmentId)
                 putBoolean(PENDING_REVOKE, record.pendingRevoke)
             }
@@ -40,20 +37,19 @@ class PrefsSharingRecords(private val prefs: SharedPreferences) : SharingRecords
     private companion object {
         const val ASSIGNMENT = "assignment_id"
         const val GRANT = "consent_grant_id"
-        const val GRANTED_AT = "granted_at"
         const val ROLE = "role_assignment_id"
         const val PENDING_REVOKE = "pending_revoke"
     }
 }
 
-/** The outbox as one session's [SampleStore]: each fix signed under [record]'s consent. */
+/** The outbox as one session's [SampleStore]: each fix signed under [consent]. */
 class OutboxSampleStore(
     private val outbox: LocationOutbox,
     private val transport: SampleTransport,
-    private val record: SharingRecord,
+    private val consent: SessionConsent,
     private val worker: SyncRequester,
 ) : SampleStore {
-    override suspend fun acquire(fix: LocationFix): Boolean = outbox.acquire(fix, record.sharing, record.roleAssignmentId) != null
+    override suspend fun acquire(fix: LocationFix): Boolean = outbox.acquire(fix, consent.sharing, consent.roleAssignmentId) != null
 
     // What this leaves pending (no network) is the SyncWorker's to send, so it
     // goes even if the session ends first.

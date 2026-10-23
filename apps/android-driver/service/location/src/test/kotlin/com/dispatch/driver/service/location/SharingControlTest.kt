@@ -22,7 +22,7 @@ class SharingControlTest {
 
     private fun consent(id: String, trip: String, revoked: String? = null) = LocationConsent(id, trip, "2026-10-23T10:00:00Z", null, revoked)
     private fun trip(id: String, consent: LocationConsent? = null) = Trip(id, "load-$id", "ACTIVE", "t", null, consent)
-    private val record = SharingRecord(assignmentId = "trip-1", consentGrantId = "g-1", granted, roleAssignmentId = "ra-1")
+    private val record = SharingRecord(assignmentId = "trip-1", consentGrantId = "g-1", roleAssignmentId = "ra-1")
 
     // ---- The resumption rule, as a function -------------------------------
 
@@ -30,6 +30,13 @@ class SharingControlTest {
     fun `a confirmed consent resumes, anything else is forgotten or waited on`() {
         val confirmed = Fetch.Ok(listOf(trip("trip-1", consent("g-1", "trip-1"))))
         assertEquals(Resumption.Resume(Sharing("trip-1", "g-1", granted), "ra-1"), Resumption.of(record, confirmed))
+
+        // The grant's start is the server's word, not anything kept here.
+        val later = LocationConsent("g-1", "trip-1", "2026-10-23T11:30:00.123456Z", null, null)
+        assertEquals(
+            Resumption.Resume(Sharing("trip-1", "g-1", java.time.Instant.parse("2026-10-23T11:30:00.123456Z")), "ra-1"),
+            Resumption.of(record, Fetch.Ok(listOf(trip("trip-1", later)))),
+        )
 
         assertEquals(Resumption.Forget, Resumption.of(record, Fetch.Ok(emptyList())))
         assertEquals(Resumption.Forget, Resumption.of(record, Fetch.Ok(listOf(trip("trip-1")))))
@@ -48,7 +55,7 @@ class SharingControlTest {
         val ids = listOf("trip-1", "trip-2")
         val grants = listOf("g-1", "g-2")
         repeat(5_000) {
-            val persisted = if (random.nextInt(5) == 0) null else SharingRecord(ids.random(random), grants.random(random), granted, "ra-1", random.nextInt(4) == 0)
+            val persisted = if (random.nextInt(5) == 0) null else SharingRecord(ids.random(random), grants.random(random), "ra-1", random.nextInt(4) == 0)
             val answer: Fetch<List<Trip>> = when (random.nextInt(4)) {
                 0 -> Fetch.Unreachable
                 1 -> Fetch.Problem(listOf(401, 403, 500).random(random), null, null)
