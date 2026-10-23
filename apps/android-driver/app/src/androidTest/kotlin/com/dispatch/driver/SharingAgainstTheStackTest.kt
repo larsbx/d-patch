@@ -38,6 +38,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Instant
 import javax.inject.Inject
 
 /**
@@ -97,10 +98,15 @@ class SharingAgainstTheStackTest {
             withTimeout(30_000) { trips.state.first { it == SharingCard.Sharing } }
 
             // A fix from the platform provider is stored, signed, under the consent.
+            // Stamped no earlier than the grant: the client rightly drops fixes
+            // from before consent, and an emulator's clock can trail the
+            // server's by minutes where a phone on network time does not.
+            val grantedAt = (client.assignments(document.roleAssignmentId) as Fetch.Ok).value
+                .firstNotNullOf { it.locationConsent }.grantedAt.let(Instant::parse).toEpochMilli()
             val provider = feed()
             withTimeout(60_000) {
                 while (samples.pending() == 0) {
-                    fix(provider)
+                    fix(provider, maxOf(System.currentTimeMillis(), grantedAt))
                     delay(1_000)
                 }
             }
@@ -129,13 +135,13 @@ class SharingAgainstTheStackTest {
         locations.setTestProviderEnabled(provider, true)
     }
 
-    private fun fix(provider: String) = locations.setTestProviderLocation(
+    private fun fix(provider: String, at: Long) = locations.setTestProviderLocation(
         provider,
         Location(provider).apply {
             latitude = 51.5074
             longitude = -0.1278
             accuracy = 5f
-            time = System.currentTimeMillis()
+            time = at
             elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
         },
     )
