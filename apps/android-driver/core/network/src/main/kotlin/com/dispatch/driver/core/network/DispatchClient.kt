@@ -3,6 +3,9 @@ package com.dispatch.driver.core.network
 import com.dispatch.driver.core.model.capability.SignedDocument
 import com.dispatch.driver.core.model.location.DemandPolicy
 import com.dispatch.driver.core.model.location.LocationSample
+import com.dispatch.driver.core.model.location.SampleTransport
+import com.dispatch.driver.core.model.location.SampleVerdict
+import com.dispatch.driver.core.model.location.UploadResult
 import com.dispatch.driver.core.model.session.SessionProvider
 import com.dispatch.driver.core.model.status.CurrentStatus
 import com.dispatch.driver.core.model.status.StatusDeclaration
@@ -37,7 +40,7 @@ import java.util.concurrent.TimeUnit
 class DispatchClient internal constructor(
     private val api: DispatchApi,
     private val streams: EventStreams,
-) : StatusTransport {
+) : StatusTransport, SampleTransport {
 
     override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult =
         call(
@@ -108,6 +111,16 @@ class DispatchClient internal constructor(
             onUnreachable = { Fetch.Unreachable },
         )
     }
+
+    /** [uploadSamples] as the outbox's [SampleTransport]: results by sample ID; a result naming none is dropped. */
+    override suspend fun upload(roleAssignmentId: String, samples: List<LocationSample>): UploadResult =
+        when (val fetched = uploadSamples(roleAssignmentId, samples)) {
+            is Fetch.Ok -> UploadResult.Answered(
+                fetched.value.mapNotNull { r -> r.sampleId?.let { it to SampleVerdict(r.result, r.code) } }.toMap(),
+            )
+            is Fetch.Problem -> UploadResult.Problem(fetched.httpStatus, fetched.code)
+            Fetch.Unreachable -> UploadResult.Unreachable
+        }
 
     /**
      * `GET /v1/me/location-demand` (ADR-0014): each policy as the server sends

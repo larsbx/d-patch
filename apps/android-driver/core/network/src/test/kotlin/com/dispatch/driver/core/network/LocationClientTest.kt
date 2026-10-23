@@ -5,6 +5,8 @@ import com.dispatch.driver.core.model.device.SigningDevice
 import com.dispatch.driver.core.model.location.DemandPolicy
 import com.dispatch.driver.core.model.location.LocationFix
 import com.dispatch.driver.core.model.location.LocationSample
+import com.dispatch.driver.core.model.location.SampleVerdict
+import com.dispatch.driver.core.model.location.UploadResult
 import com.dispatch.driver.core.model.location.ServerSentEvent
 import com.dispatch.driver.core.model.session.SessionProvider
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -108,6 +110,27 @@ class LocationClientTest {
         assertEquals(DispatchClient.batchKey(batch), request.getHeader("Idempotency-Key"))
         assertEquals("""{"samples":[${batch.joinToString(",") { it.toCanonicalJson() }}]}""", request.body.readUtf8())
     }
+
+    // The outbox's port: the same request, answered by sample ID.
+    @Test
+    fun `as the outbox's transport, an upload answers by sample ID`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(207).setBody(
+                """{"results":[{"sample_id":"sample-1","result":"DUPLICATE","code":null},{"sample_id":null,"result":"REJECTED","code":"INVALID_SAMPLE"}]}""",
+            ),
+        )
+        server.enqueue(problemResponse(403, "FORBIDDEN"))
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
+        val batch = listOf(sample(1))
+
+        assertEquals(UploadResult.Answered(mapOf("sample-1" to SampleVerdict("DUPLICATE", null))), client.upload("ra-1", batch))
+        assertEquals(UploadResult.Problem(403, "FORBIDDEN"), client.upload("ra-1", batch))
+        assertEquals(UploadResult.Unreachable, client.upload("ra-1", batch))
+    }
+
+    private fun problemResponse(status: Int, code: String) =
+        MockResponse().setResponseCode(status).setHeader("content-type", "application/problem+json")
+            .setBody("""{"status":$status,"code":"$code","detail":"d"}""")
 
     @Test
     fun `an unsigned sample is never sent`() {

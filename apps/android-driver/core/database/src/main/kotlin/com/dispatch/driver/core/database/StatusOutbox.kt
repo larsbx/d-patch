@@ -50,7 +50,7 @@ class StatusOutbox(
             ).let { unsigned -> signer.current()?.let(unsigned::signedBy) ?: unsigned }
             dao.insert(
                 PendingEventEntity(
-                    kind = PendingKind.STATUS.name,
+                    kind = KIND,
                     canonicalJson = declaration.toCanonicalJson(),
                     deviceSequence = sequence,
                     createdAt = now,
@@ -71,7 +71,7 @@ class StatusOutbox(
      * network.
      */
     suspend fun sync(transport: StatusTransport): SyncOutcome {
-        for (event in dao.due(clock())) {
+        for (event in dao.due(KIND, clock())) {
             val declaration = StatusDeclaration.fromCanonicalJson(event.canonicalJson)
             when (val disposition = Disposition.of(transport.submit(declaration, event.roleAssignmentId))) {
                 is Disposition.Acknowledge -> acknowledge(event, disposition.current)
@@ -82,7 +82,7 @@ class StatusOutbox(
                 }
             }
         }
-        return dao.earliestPendingAttempt()?.let(SyncOutcome::RetryAt) ?: SyncOutcome.Drained
+        return dao.earliestPendingAttempt(KIND)?.let(SyncOutcome::RetryAt) ?: SyncOutcome.Drained
     }
 
     /**
@@ -94,7 +94,7 @@ class StatusOutbox(
 
     /** What the status screen renders: the server's view plus everything local. */
     fun view(): Flow<OutboxView> =
-        dao.observeDriverState().combine(dao.observeEvents()) { state, events ->
+        dao.observeDriverState().combine(dao.observeEvents(KIND)) { state, events ->
             OutboxView(
                 acknowledged = state?.let { json.decodeFromString(CurrentStatus.serializer(), it.json) },
                 acknowledgedAt = state?.fetchedAt,
@@ -132,6 +132,7 @@ class StatusOutbox(
     }
 
     companion object {
+        private val KIND = PendingKind.STATUS.name
         private val json = Json { ignoreUnknownKeys = true }
 
         private const val BASE_BACKOFF_MILLIS = 30_000L
