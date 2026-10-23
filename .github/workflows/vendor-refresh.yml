@@ -1,0 +1,45 @@
+name: Vendored dependency refresh
+# Section 26.1: the Datastar bundle stays committed and hash-named, and moves
+# only through a dependency-review change. This proposes that change when
+# upstream releases, and refreshes the committed copy of biz-kit's dispatch
+# contract when biz-kit main changes it; each pull request's CI is the gate.
+on:
+  schedule:
+    - cron: '23 5 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  datastar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.VENDOR_PR_TOKEN || github.token }}
+      - id: refresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "tag=$(scripts/vendor-datastar.sh central/priv/static/vendor)" >> "$GITHUB_OUTPUT"
+      - if: steps.refresh.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.VENDOR_PR_TOKEN || github.token }}
+          TAG: ${{ steps.refresh.outputs.tag }}
+        run: >-
+          scripts/propose-update.sh "vendor/datastar-$TAG"
+          "Update vendored Datastar to $TAG"
+          "Upstream released $TAG. Bundle and VENDOR.md updated by scripts/vendor-datastar.sh; the web-unit gate in this pull request's CI is the Section 26.1 review gate."
+
+  dispatch-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.VENDOR_PR_TOKEN || github.token }}
+      - run: scripts/sync-dispatch-contract.sh
+      - env:
+          GH_TOKEN: ${{ secrets.VENDOR_PR_TOKEN || github.token }}
+        run: >-
+          scripts/propose-update.sh "vendor/dispatch-contract-$(sha256sum contracts/biz-kit-dispatch.openapi.json | cut -c1-12)"
+          "Refresh biz-kit dispatch contract"
+          "biz-kit main's apps/dispatch/contracts/openapi.json changed. Copied by scripts/sync-dispatch-contract.sh; ContractConformanceTest in this pull request's CI says what the client must follow."
