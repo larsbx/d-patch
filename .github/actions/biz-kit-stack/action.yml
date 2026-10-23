@@ -3,8 +3,7 @@
 # The job provides PostgreSQL with PostGIS on :5432 (user and password
 # "postgres"), because a composite action cannot declare a service.
 #
-# biz-kit is checked out at the branch of the same name when one exists, so a
-# change spanning both repositories is tested together; otherwise at main.
+# biz-kit is checked out at the revision biz-kit-ref resolves.
 
 name: biz-kit stack
 description: Check out biz-kit and serve its end-to-end stack
@@ -20,14 +19,7 @@ runs:
   using: composite
   steps:
     - id: ref
-      shell: bash
-      env: { BRANCH: "${{ github.head_ref || github.ref_name }}" }
-      run: |
-        if git ls-remote --exit-code --heads https://github.com/larsbx/biz-kit "$BRANCH" >/dev/null; then
-          echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
-        else
-          echo "ref=main" >> "$GITHUB_OUTPUT"
-        fi
+      uses: ./.github/actions/biz-kit-ref
     - uses: actions/checkout@v4
       with: { repository: larsbx/biz-kit, ref: "${{ steps.ref.outputs.ref }}", path: biz-kit }
     - uses: erlef/setup-beam@v1

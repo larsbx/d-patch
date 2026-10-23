@@ -1,0 +1,22 @@
+# Which biz-kit revision this run pairs with: the branch of the same name when
+# one exists, so a change spanning both repositories is tested together;
+# otherwise main.
+
+name: biz-kit ref
+description: Resolve the biz-kit branch this run pairs with
+outputs:
+  ref:
+    description: biz-kit branch to use
+    value: ${{ steps.ref.outputs.ref }}
+runs:
+  using: composite
+  steps:
+    - id: ref
+      shell: bash
+      env: { BRANCH: "${{ github.head_ref || github.ref_name }}" }
+      run: |
+        if git ls-remote --exit-code --heads https://github.com/larsbx/biz-kit "$BRANCH" >/dev/null; then
+          echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+        else
+          echo "ref=main" >> "$GITHUB_OUTPUT"
+        fi

@@ -33,4 +33,10 @@ The server's contract as the field app consumes it: a copy of biz-kit's
 generated `apps/dispatch/contracts/openapi.json` (ADR-0010). Refresh it with
 `scripts/sync-dispatch-contract.sh`; `--check` fails when it is stale. The
 Android `ContractConformanceTest` holds the client's DTOs to it.
+
+It does not go stale silently. CI's `android-unit` refreshes it from the paired
+biz-kit branch (the same-named branch, else main) before the tests, so the
+client is always held to the server's contract as it stands; and `Vendored
+dependency refresh` proposes the refreshed copy as a pull request daily when
+biz-kit main has changed it.
 `openapi.json` above remains `central/`'s.
