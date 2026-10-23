@@ -31,6 +31,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var tripSharing: TripSharing
 
+    @Inject lateinit var sharingHost: AppSharingHost
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // A recreated activity has already handled the intent it was started with.
@@ -54,6 +56,8 @@ class MainActivity : ComponentActivity() {
         // In the foreground, where a location service may start: Section 25.3's
         // resumption, after the server confirms the consent, and any owed stop.
         lifecycleScope.launch { tripSharing.resume() }
+        // Section 25.3: a running session sends what it holds.
+        sharingHost.foregrounded()
     }
 
     override fun onNewIntent(intent: Intent) {

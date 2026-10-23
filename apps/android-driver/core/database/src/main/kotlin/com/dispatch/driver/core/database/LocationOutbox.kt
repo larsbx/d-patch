@@ -70,6 +70,9 @@ class LocationOutbox(
         return dao.earliestPendingAttempt(KIND)?.let(SyncOutcome::RetryAt) ?: SyncOutcome.Drained
     }
 
+    /** Makes every deferred sample due now, as `StatusOutbox.retryNow` does for declarations. */
+    suspend fun retryNow() = dao.makeDue(clock())
+
     /** How many samples are waiting to be settled. */
     suspend fun pending(): Int = dao.countPending(KIND)
 

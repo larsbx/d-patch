@@ -7,7 +7,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /** What the status screen shows about location sharing. */
 sealed interface SharingCard {
@@ -64,6 +67,12 @@ class TripSharing(
     val state: StateFlow<SharingCard> =
         combine(offered, trips, record, sessions.activity) { role, trips, record, active -> SharingCard.of(role != null, trips, record, active) }
             .stateIn(scope, SharingStarted.Eagerly, SharingCard.Checking)
+
+    init {
+        // The capability usually arrives after the screen first asks (a first
+        // sign-in): read the trips whenever there is a role to read them for.
+        scope.launch { offered.filterNotNull().distinctUntilChanged().collect { refresh() } }
+    }
 
     /** Re-reads the record and the trips. */
     suspend fun refresh() {

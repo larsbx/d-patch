@@ -2,6 +2,8 @@ package com.dispatch.driver.service.location
 
 import android.content.SharedPreferences
 import com.dispatch.driver.core.database.LocationOutbox
+import com.dispatch.driver.core.database.SyncOutcome
+import com.dispatch.driver.core.model.capability.SyncRequester
 import com.dispatch.driver.core.model.location.LocationFix
 import com.dispatch.driver.core.model.location.SampleTransport
 
@@ -45,11 +47,13 @@ class OutboxSampleStore(
     private val outbox: LocationOutbox,
     private val transport: SampleTransport,
     private val record: SharingRecord,
+    private val worker: SyncRequester,
 ) : SampleStore {
     override suspend fun acquire(fix: LocationFix): Boolean = outbox.acquire(fix, record.sharing, record.roleAssignmentId) != null
 
-    // What this leaves pending (no network) the SyncWorker sends later.
+    // What this leaves pending (no network) is the SyncWorker's to send, so it
+    // goes even if the session ends first.
     override suspend fun sync() {
-        outbox.sync(transport)
+        if (outbox.sync(transport) is SyncOutcome.RetryAt) worker.requestSync()
     }
 }

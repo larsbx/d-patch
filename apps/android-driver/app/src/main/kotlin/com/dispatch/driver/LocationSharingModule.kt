@@ -8,6 +8,7 @@ import com.dispatch.driver.core.database.LocationOutbox
 import com.dispatch.driver.core.model.capability.CapabilityProvider
 import com.dispatch.driver.core.model.capability.CapabilityState
 import com.dispatch.driver.core.model.capability.Features
+import com.dispatch.driver.core.model.capability.SyncRequester
 import com.dispatch.driver.core.model.location.SampleTransport
 import com.dispatch.driver.core.network.DispatchClient
 import com.dispatch.driver.service.location.ConsentApi
@@ -31,6 +32,8 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -86,16 +89,27 @@ object LocationSharingModule {
 }
 
 /** What LocationSharingService needs, from the app's graph (`SharingHost`). */
+@Singleton
 class AppSharingHost @Inject constructor(
     @ApplicationContext private val context: Context,
     override val sessions: SharingSessions,
     override val sharingControl: SharingControl,
     private val outbox: LocationOutbox,
     private val client: DispatchClient,
+    private val worker: SyncRequester,
 ) : SharingHost {
+    private val foregrounds = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    override val foreground: Flow<Unit> = foregrounds
+
+    /** The app came to the foreground (`MainActivity.onStart`). */
+    fun foregrounded() {
+        foregrounds.tryEmit(Unit)
+    }
+
     override fun sharingSession(record: SharingRecord): LocationSharing = LocationSharing(
         fixes = PlatformFixSource(context.getSystemService(LocationManager::class.java)),
-        store = OutboxSampleStore(outbox, client, record),
+        store = OutboxSampleStore(outbox, client, record, worker),
         demand = DemandSource { client.demand(record.roleAssignmentId) },
     )
 }

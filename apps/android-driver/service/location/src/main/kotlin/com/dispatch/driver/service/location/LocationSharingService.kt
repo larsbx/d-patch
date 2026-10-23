@@ -22,7 +22,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicReference
 
@@ -34,6 +34,9 @@ import java.util.concurrent.atomic.AtomicReference
 interface SharingHost {
     val sessions: SharingSessions
     val sharingControl: SharingControl
+
+    /** Emits when the app comes to the foreground: Section 25.3 uploads then. */
+    val foreground: Flow<Unit>
 
     /** A session bound to [record]'s consent: its outbox, the platform provider, the demand stream. */
     fun sharingSession(record: SharingRecord): LocationSharing
@@ -124,7 +127,7 @@ class LocationSharingService : Service() {
         val revoked = host.sessions.open()
         session = scope.launch {
             val end = try {
-                host.sharingSession(record).run(revoked, emptyFlow())
+                host.sharingSession(record).run(revoked, host.foreground)
             } finally {
                 host.sessions.close(revoked)
             }

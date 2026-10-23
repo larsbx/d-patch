@@ -106,6 +106,22 @@ class TripSharingTest {
         assertEquals(SharingCard.Stopping, model.state.value)
     }
 
+    // First sign-in: the screen opens while the capability document is still
+    // loading. When the feature arrives, the trips are read without anyone asking.
+    @Test
+    fun `trips are read when the capability arrives`() = runTest {
+        val f = Fakes().apply { offered.value = null }
+        val model = TripSharing(backgroundScope, f.offered, f.api, f.records, f.sessions, f.control)
+        model.refresh()
+        runCurrent()
+        assertEquals(SharingCard.Hidden, model.state.value)
+
+        f.offered.value = "ra-1"
+        runCurrent()
+
+        assertEquals(SharingCard.Offer(trip("trip-1", "ACTIVE")), model.state.value)
+    }
+
     @Test
     fun `without the feature there is nothing to show, and nothing to share`() = runTest {
         val f = Fakes().apply { offered.value = null }

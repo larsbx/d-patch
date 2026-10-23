@@ -30,6 +30,8 @@ class AdaptersTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val database = Room.inMemoryDatabaseBuilder(context, DispatchDatabase::class.java).allowMainThreadQueries().build()
 
+    private var syncRequests = 0
+
     @After
     fun close() = database.close()
 
@@ -62,7 +64,7 @@ class AdaptersTest {
             UploadResult.Answered(batch.associate { it.sampleId to SampleVerdict("ACCEPTED", null) })
         }
         val device = SigningDevice("device-1", DeviceKey.fromSeed(ByteArray(32) { 1 }))
-        val store = OutboxSampleStore(LocationOutbox(database, signer = { device }), transport, SharingRecord("trip-1", "g-1", "ra-1"))
+        val store = OutboxSampleStore(LocationOutbox(database, signer = { device }), transport, SharingRecord("trip-1", "g-1", "ra-1")) { syncRequests++ }
 
         assertTrue(store.acquire(LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))))
         store.sync()
@@ -74,7 +76,30 @@ class AdaptersTest {
 
     @Test
     fun `without a registered device the store acquires nothing`() = runTest {
-        val store = OutboxSampleStore(LocationOutbox(database, signer = { null }), { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", "ra-1"))
+        val store = OutboxSampleStore(LocationOutbox(database, signer = { null }), { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", "ra-1")) { syncRequests++ }
         assertFalse(store.acquire(LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))))
+    }
+
+    // A session that ends with samples unsent leaves them to WorkManager,
+    // not to whatever happens to sync next.
+    @Test
+    fun `what a session cannot send is handed to the sync worker`() = runTest {
+        val device = SigningDevice("device-1", DeviceKey.fromSeed(ByteArray(32) { 1 }))
+        val outbox = LocationOutbox(database, signer = { device })
+        val fix = LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, Instant.parse("2026-10-23T10:00:00Z"))
+        val offline = OutboxSampleStore(outbox, { _, _ -> UploadResult.Unreachable }, SharingRecord("trip-1", "g-1", "ra-1")) { syncRequests++ }
+
+        offline.acquire(fix)
+        offline.sync()
+        assertEquals(1, syncRequests)
+
+        val online = OutboxSampleStore(
+            outbox,
+            { _, batch -> UploadResult.Answered(batch.associate { it.sampleId to SampleVerdict("ACCEPTED", null) }) },
+            SharingRecord("trip-1", "g-1", "ra-1"),
+        ) { syncRequests++ }
+        outbox.retryNow()
+        online.sync()
+        assertEquals(1, syncRequests)
     }
 }

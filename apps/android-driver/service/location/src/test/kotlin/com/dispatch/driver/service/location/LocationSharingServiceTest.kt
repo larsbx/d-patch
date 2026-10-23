@@ -13,6 +13,7 @@ import com.dispatch.driver.core.network.LocationConsent
 import com.dispatch.driver.core.network.Trip
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import org.junit.Assert.assertEquals
@@ -43,6 +44,7 @@ class LocationSharingServiceTest {
         private var record: SharingRecord? = null
 
         override val sessions = SharingSessions()
+        override val foreground = MutableSharedFlow<Unit>()
         override val sharingControl: SharingControl by lazy {
             SharingControl(
                 api = object : ConsentApi {
@@ -50,7 +52,7 @@ class LocationSharingServiceTest {
                         Fetch.Ok(LocationConsent("g-1", assignmentId, "t", null, null))
                     override suspend fun revoke(roleAssignmentId: String, consentGrantId: String, idempotencyKey: String) =
                         revokeAnswer.also { log += "revoke $consentGrantId" }
-                    override suspend fun trips(roleAssignmentId: String): Fetch<List<Trip>> = Fetch.Unreachable
+                    override suspend fun trips(roleAssignmentId: String): Fetch<List<Trip>> = Fetch.Unreachable.also { log += "trips" }
                 },
                 records = object : SharingRecords {
                     override suspend fun read() = record
@@ -61,7 +63,13 @@ class LocationSharingServiceTest {
         }
 
         override fun sharingSession(record: SharingRecord) = LocationSharing(
-            fixes = { flow<LocationFix> { log += "fixes"; awaitCancellation() } },
+            fixes = {
+                flow {
+                    log += "fixes"
+                    emit(LocationFix(51.5, -0.12, 5.0, null, null, "gps", false, java.time.Instant.parse("2026-10-23T10:00:00Z")))
+                    awaitCancellation()
+                }
+            },
             store = object : SampleStore {
                 override suspend fun acquire(fix: LocationFix) = true
                 override suspend fun sync() { log += "sync" }
@@ -70,6 +78,8 @@ class LocationSharingServiceTest {
         )
 
         suspend fun remembered() = record
+
+        suspend fun remember(record: SharingRecord) { this.record = record }
 
         override fun onCreate() {
             super.onCreate()
@@ -128,6 +138,42 @@ class LocationSharingServiceTest {
 
         assertTrue(shadowOf(controller.get()).isStoppedBySelf)
         assertEquals(null, host.remembered())
+    }
+
+    // Section 25.3: the app coming to the foreground sends what is held.
+    @Test
+    fun `the app coming to the foreground reaches the running session`() = kotlinx.coroutines.test.runTest {
+        started()
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        host.log.clear()
+
+        host.foreground.emit(Unit)
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        // The trickle held the fix; coming to the foreground sends it.
+        assertEquals(listOf("sync"), host.log)
+    }
+
+    // Section 25.3: "Reboot receiver resumes only if the persisted consent is
+    // valid and the active assignment still exists after server confirmation."
+    @Test
+    fun `after a reboot the remembered consent is checked with the server`() = kotlinx.coroutines.test.runTest {
+        host.remember(record)
+
+        SharingBootReceiver().onReceive(host, Intent(Intent.ACTION_BOOT_COMPLETED))
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+
+        assertEquals(listOf("trips"), host.log)
+        // Unconfirmed (no answer): nothing started.
+        assertFalse(host.sessions.active)
+    }
+
+    @Test
+    fun `the boot receiver ignores anything but a boot`() = kotlinx.coroutines.test.runTest {
+        host.remember(record)
+        SharingBootReceiver().onReceive(host, Intent(Intent.ACTION_TIME_CHANGED))
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertEquals(emptyList<String>(), host.log)
     }
 
     @Test
