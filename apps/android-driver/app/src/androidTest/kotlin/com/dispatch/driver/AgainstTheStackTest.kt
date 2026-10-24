@@ -78,8 +78,9 @@ class AgainstTheStackTest {
         assertNotNull(keys.current())
 
         // Offline: declared and signed on the device; nothing reaches the server.
-        airplaneMode(true)
+        // Inside the try: a wait for offline that times out still restores the network.
         try {
+            airplaneMode(true)
             outbox.declare("AT_PICKUP", null, document.roleAssignmentId)
             delay(2_000)
             outbox.declare("LOADING", null, document.roleAssignmentId)
