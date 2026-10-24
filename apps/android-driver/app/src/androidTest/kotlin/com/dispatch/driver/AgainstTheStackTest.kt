@@ -1,5 +1,7 @@
 package com.dispatch.driver
 
+import android.net.ConnectivityManager
+import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -106,8 +108,22 @@ class AgainstTheStackTest {
         assertEquals(AuthResult.Refused(401), AuthApi(BuildConfig.AUTH_BASE_URL).principal(token))
     }
 
-    private fun airplaneMode(on: Boolean) {
-        val command = "cmd connectivity airplane-mode ${if (on) "enable" else "disable"}"
-        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).close()
+    /**
+     * Offline means no network, not a command sent: the shell command returns
+     * before it has run, and the network drops some time after it has. Wi-Fi
+     * goes too, since Android 13 may keep it on in airplane mode.
+     */
+    private suspend fun airplaneMode(on: Boolean) {
+        shell("cmd connectivity airplane-mode ${if (on) "enable" else "disable"}")
+        shell("cmd wifi set-wifi-enabled ${if (on) "disabled" else "enabled"}")
+        if (on) withTimeout(30_000) { while (connectivity.activeNetwork != null) delay(200) }
     }
+
+    // Read to the end: that, not closing the descriptor, waits for the command.
+    private fun shell(command: String) =
+        ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command))
+            .use { it.readBytes() }
+
+    private val connectivity get() =
+        InstrumentationRegistry.getInstrumentation().targetContext.getSystemService(ConnectivityManager::class.java)
 }
