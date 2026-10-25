@@ -12,7 +12,7 @@ quint run auth_intent.qnt --invariant=safety --max-samples=3000 --max-steps=25 -
 expect_violation() {
   local output
   output=$(quint run "$1" --invariant="$2" --max-samples=10000 --max-steps=25 --seed=1 --verbosity=1 2>&1 || true)
-  if ! rg -q '\[violation\]' <<<"$output"; then
+  if [[ "$output" != *"[violation]"* ]]; then
     echo "$output" >&2
     echo "Missing counterexample: $1 / $2" >&2
     exit 1
@@ -26,9 +26,10 @@ done
 quint verify auth_intent.qnt --invariant=safety --max-steps=6 --apalache-version=0.47.2
 
 cd lean
-lean --version | rg -q 'version 4\.35\.0'
+[[ "$(lean --version)" == *"version 4.35.0"* ]]
 # Reject proof gaps even if Lean reports them only as warnings.
 proof_log=$(mktemp)
 trap 'rm -f "$proof_log"' EXIT
-lake build 2>&1 | tee "$proof_log"
-! rg -q 'sorryAx|declaration uses .sorry.' "$proof_log"
+lake build
+lake env lean -DwarningAsError=true AuthIntent.lean 2>&1 | tee "$proof_log"
+[[ "$(cat "$proof_log")" != *sorryAx* ]]
