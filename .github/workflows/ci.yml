@@ -153,6 +153,7 @@ jobs:
         uses: ./.github/actions/biz-kit-ref
       - run: scripts/sync-dispatch-contract.sh
         env: { BIZ_KIT_REF: "${{ steps.biz-kit.outputs.ref }}" }
+      - run: python3 -m unittest discover -s scripts -p test_android_acceptance_observer.py
       - run: ./gradlew testDebugUnitTest --no-daemon
         working-directory: apps/android-driver
 
@@ -273,7 +274,9 @@ jobs:
           arch: x86_64
           disable-animations: true
           working-directory: apps/android-driver
-          script: ./gradlew :app:connectedDebugAndroidTest -Pdispatch.authProvider=${{ matrix.person }} --no-daemon
+          script: ../../scripts/run-android-stack-acceptance.sh ${{ matrix.person }}
+      - if: always()
+        run: cat "$RUNNER_TEMP/acceptance-trace.log" 2>/dev/null || true
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -281,6 +284,7 @@ jobs:
           path: |
             apps/android-driver/app/build/reports/androidTests/
             ${{ runner.temp }}/biz-kit-stack.log
+            ${{ runner.temp }}/acceptance-trace.log
 
   openapi-diff:
     name: openapi-diff

@@ -4,16 +4,20 @@ import android.net.ConnectivityManager
 import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.dispatch.driver.core.auth.AuthApi
 import com.dispatch.driver.core.auth.AuthResult
 import com.dispatch.driver.core.auth.AuthSession
 import com.dispatch.driver.core.auth.DeviceKeys
+import com.dispatch.driver.core.database.DispatchDatabase
 import com.dispatch.driver.core.database.PendingState
 import com.dispatch.driver.core.database.StatusOutbox
 import com.dispatch.driver.core.database.SyncOutcome
 import com.dispatch.driver.core.model.capability.CapabilityProvider
 import com.dispatch.driver.core.model.capability.CapabilityState
+import com.dispatch.driver.core.model.status.StatusDeclaration
+import com.dispatch.driver.core.model.status.SubmitResult
 import com.dispatch.driver.core.model.status.StatusTransport
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -31,6 +35,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import javax.inject.Inject
+import java.util.UUID
 
 /**
  * The app's own graph against biz-kit's end-to-end stack on the host
@@ -55,6 +60,7 @@ class AgainstTheStackTest {
     @Inject lateinit var keys: DeviceKeys
     @Inject lateinit var outbox: StatusOutbox
     @Inject lateinit var transport: StatusTransport
+    @Inject lateinit var database: DispatchDatabase
 
     @Before
     fun inject() {
@@ -79,12 +85,26 @@ class AgainstTheStackTest {
 
         // Offline: declared and signed on the device; nothing reaches the server.
         // Inside the try: a wait for offline that times out still restores the network.
+        val interval = UUID.randomUUID().toString()
+        val queued = mutableListOf<Pair<StatusDeclaration, String>>()
         try {
             airplaneMode(true)
+            observeServer("START", interval, 0)
             outbox.declare("AT_PICKUP", null, document.roleAssignmentId)
             delay(2_000)
             outbox.declare("LOADING", null, document.roleAssignmentId)
-            assertTrue(outbox.sync(transport) is SyncOutcome.RetryAt)
+            queued += database.outbox().due("STATUS", Long.MAX_VALUE).map {
+                StatusDeclaration.fromCanonicalJson(it.canonicalJson) to it.roleAssignmentId
+            }
+            assertEquals(2, queued.size)
+            val workers = WorkManager.getInstance(InstrumentationRegistry.getInstrumentation().targetContext)
+                .getWorkInfosForUniqueWork(SyncWorker.UNIQUE_NAME).get().map { it.state }
+            AcceptanceTrace.record("workers=$workers")
+            val offline = outbox.sync(transport)
+            AcceptanceTrace.record("offline outcome=$offline states=${outbox.view().first().events.map { it.state }}")
+            observeServer("OFFLINE", interval, 0)
+            assertTrue("offline outcome=$offline", offline is SyncOutcome.RetryAt)
+            assertEquals(listOf(PendingState.PENDING, PendingState.PENDING), outbox.view().first().events.map { it.state })
         } finally {
             airplaneMode(false)
         }
@@ -102,11 +122,22 @@ class AgainstTheStackTest {
         assertEquals(listOf(PendingState.ACKNOWLEDGED, PendingState.ACKNOWLEDGED), view.events.map { it.state })
         assertEquals("LOADING", view.acknowledged?.value)
 
-        // ADR-0011: the session lasts until sign-out, and ends on the server with it.
+        // Replaying the very same signed events cannot create another effect.
+        for ((declaration, role) in queued) {
+            assertTrue("replayed signed event", transport.submit(declaration, role) is SubmitResult.Stored)
+        }
+        observeServer("REPLAYED", interval, 2)
+
+        // ADR-0011: local removal and confirmed remote logout are separate facts.
         val token = checkNotNull(auth.accessToken())
-        auth.signOut()
+        val logout = auth.signOut()
+        AcceptanceTrace.record("logout outcome=$logout localRemoved=${auth.accessToken() == null}")
         assertTrue(auth.signInRequired.value)
-        assertEquals(AuthResult.Refused(401), AuthApi(BuildConfig.AUTH_BASE_URL).principal(token))
+        assertNull(auth.accessToken())
+        assertEquals("remote logout must be confirmed", AuthResult.Ok(Unit), logout)
+        val probe = AuthApi(BuildConfig.AUTH_BASE_URL, AcceptanceTrace.client()).principal(token)
+        // Keep the exact 401 requirement without leaking a principal on failure.
+        assertTrue("prior session probe=${probe.javaClass.simpleName}", probe == AuthResult.Refused(401))
     }
 
     /**
@@ -117,7 +148,27 @@ class AgainstTheStackTest {
     private suspend fun airplaneMode(on: Boolean) {
         shell("cmd connectivity airplane-mode ${if (on) "enable" else "disable"}")
         shell("cmd wifi set-wifi-enabled ${if (on) "disabled" else "enabled"}")
-        if (on) withTimeout(30_000) { while (connectivity.activeNetwork != null) delay(200) }
+        AcceptanceTrace.record("network command offline=$on active=${connectivity.activeNetwork != null}")
+        withTimeout(60_000) {
+            while ((connectivity.activeNetwork != null) == on || !StackNetwork.ready(online = !on)) delay(200)
+        }
+        AcceptanceTrace.record("network settled offline=$on active=${connectivity.activeNetwork != null}")
+    }
+
+    /** The host reads aggregate counts, then acknowledges over adb while the network stays put. */
+    private suspend fun observeServer(operation: String, interval: String, expected: Int) {
+        if (InstrumentationRegistry.getArguments().getString("serverObserver") != "true") return
+        AcceptanceTrace.record("observer $operation $interval")
+        val file = "/data/local/tmp/dispatch-acceptance-$interval-$operation"
+        val result = withTimeout(30_000) {
+            var read = ""
+            while (read.isEmpty()) {
+                read = shell("cat $file 2>/dev/null").toString(Charsets.UTF_8).trim()
+                if (read.isEmpty()) delay(200)
+            }
+            read
+        }
+        assertEquals("server effects at $operation", expected.toString(), result)
     }
 
     // Read to the end: that, not closing the descriptor, waits for the command.

@@ -15,13 +15,13 @@ object StackBrowser {
     tailrec fun follow(url: String): String {
         if (url.startsWith("${BuildConfig.APPLICATION_ID}:")) return url
         val next = http.newCall(Request.Builder().url(url).build()).execute().use { response ->
-            val location = checkNotNull(response.header("Location")) { "no redirect from $url: ${response.code}" }
+            val location = checkNotNull(response.header("Location")) { "no redirect: HTTP ${response.code}" }
             if (location.startsWith("${BuildConfig.APPLICATION_ID}:")) location else checkNotNull(response.request.url.resolve(location)).toString()
         }
         return follow(next)
     }
 
-    private val http = OkHttpClient.Builder()
+    private val http = AcceptanceTrace.client().newBuilder()
         .followRedirects(false)
         .cookieJar(object : CookieJar {
             private val jar = mutableListOf<Cookie>()

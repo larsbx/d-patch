@@ -24,6 +24,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import okhttp3.OkHttpClient
 
 /** The composition root. Core modules take plain constructors; only here are they joined. */
 @Module
@@ -42,10 +43,10 @@ object AppModule {
 
     /** ADR-0011: a biz-kit session from native sign-in, sealed by a Keystore key. */
     @Provides @Singleton
-    fun authSession(@ApplicationContext context: Context, sealer: Sealer): AuthSession {
+    fun authSession(@ApplicationContext context: Context, sealer: Sealer, http: OkHttpClient): AuthSession {
         val config = SignInConfig(BuildConfig.AUTH_BASE_URL, BuildConfig.AUTH_PROVIDER, "${BuildConfig.APPLICATION_ID}:/oauth2redirect")
         val vault = SealedPrefsVault(context.getSharedPreferences("auth", Context.MODE_PRIVATE), sealer)
-        return AuthSession(config, AuthApi(config.authBaseUrl), vault)
+        return AuthSession(config, AuthApi(config.authBaseUrl, http), vault)
     }
 
     /** ADR-0012: this installation's Ed25519 key, sealed beside the session. */
@@ -65,7 +66,7 @@ object AppModule {
     fun signIn(auth: AuthSession, capabilities: CapabilityProvider, sync: SyncRequester): SignInFlow = SignInFlow(auth, capabilities, sync)
 
     @Provides @Singleton
-    fun client(session: SessionProvider): DispatchClient = DispatchClient.create(BuildConfig.API_BASE_URL, session)
+    fun client(session: SessionProvider, http: OkHttpClient): DispatchClient = DispatchClient.create(BuildConfig.API_BASE_URL, session, http)
 
     @Provides
     fun transport(client: DispatchClient): StatusTransport = client

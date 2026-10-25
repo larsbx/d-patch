@@ -1,6 +1,9 @@
 package com.dispatch.driver.core.auth
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runTest
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.mockwebserver.Dispatcher
@@ -17,6 +20,8 @@ import java.io.IOException
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 
@@ -189,7 +194,7 @@ class AuthSessionTest {
         server.takeRequest()
         server.enqueue(MockResponse().setResponseCode(204))
 
-        session.signOut()
+        assertEquals(AuthResult.Ok(Unit), session.signOut())
 
         assertNull(session.accessToken())
         assertNull(session.subject())
@@ -206,10 +211,51 @@ class AuthSessionTest {
         session.complete(redirect(session.started(), "code" to "c-1"))
         server.shutdown()
 
-        session.signOut()
+        assertEquals(AuthResult.Unreachable, session.signOut())
 
         assertNull(session.subject())
         assertEquals(AuthRecord(), vault.read())
+    }
+
+    @Test
+    fun `local credentials disappear before remote logout answers`() = runBlocking {
+        val session = session()
+        granted()
+        session.complete(redirect(session.started(), "code" to "c-1"))
+        val arrived = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                arrived.countDown()
+                check(release.await(10, TimeUnit.SECONDS))
+                return MockResponse().setResponseCode(204)
+            }
+        }
+        val logout = async(Dispatchers.IO) { session.signOut() }
+        try {
+            withContext(Dispatchers.IO) { check(arrived.await(10, TimeUnit.SECONDS)) }
+            assertNull(session.accessToken())
+            assertNull(session.subject())
+            assertTrue(session.signInRequired.value)
+            assertEquals(AuthRecord(), vault.read())
+        } finally {
+            release.countDown()
+        }
+        assertEquals(AuthResult.Ok(Unit), logout.await())
+    }
+
+    @Test
+    fun `refused logout is reported and never restores local credentials`() = runTest {
+        val session = session()
+        granted()
+        session.complete(redirect(session.started(), "code" to "c-1"))
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertEquals(AuthResult.Refused(503), session.signOut())
+        assertNull(session.accessToken())
+        assertTrue(session.signInRequired.value)
+        assertEquals(AuthRecord(), vault.read())
+        assertNull("no credential is retained for an implicit retry", session.signOut())
+        assertEquals(3, server.requestCount)
     }
 
     @Test
