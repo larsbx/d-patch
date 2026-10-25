@@ -84,7 +84,9 @@ class AgainstTheStackTest {
             outbox.declare("AT_PICKUP", null, document.roleAssignmentId)
             delay(2_000)
             outbox.declare("LOADING", null, document.roleAssignmentId)
-            assertTrue(outbox.sync(transport) is SyncOutcome.RetryAt)
+            val offline = outbox.sync(transport)
+            AcceptanceTrace.record("offline outcome=$offline states=${outbox.view().first().events.map { it.state }}")
+            assertTrue("offline outcome=$offline", offline is SyncOutcome.RetryAt)
         } finally {
             airplaneMode(false)
         }
@@ -104,9 +106,10 @@ class AgainstTheStackTest {
 
         // ADR-0011: the session lasts until sign-out, and ends on the server with it.
         val token = checkNotNull(auth.accessToken())
-        auth.signOut()
+        val logout = auth.signOut()
+        AcceptanceTrace.record("logout outcome=$logout localRemoved=${auth.accessToken() == null}")
         assertTrue(auth.signInRequired.value)
-        assertEquals(AuthResult.Refused(401), AuthApi(BuildConfig.AUTH_BASE_URL).principal(token))
+        assertEquals(AuthResult.Refused(401), AuthApi(BuildConfig.AUTH_BASE_URL, AcceptanceTrace.client()).principal(token))
     }
 
     /**
@@ -117,7 +120,9 @@ class AgainstTheStackTest {
     private suspend fun airplaneMode(on: Boolean) {
         shell("cmd connectivity airplane-mode ${if (on) "enable" else "disable"}")
         shell("cmd wifi set-wifi-enabled ${if (on) "disabled" else "enabled"}")
+        AcceptanceTrace.record("network command offline=$on active=${connectivity.activeNetwork != null}")
         if (on) withTimeout(30_000) { while (connectivity.activeNetwork != null) delay(200) }
+        AcceptanceTrace.record("network settled offline=$on active=${connectivity.activeNetwork != null}")
     }
 
     // Read to the end: that, not closing the descriptor, waits for the command.

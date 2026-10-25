@@ -21,7 +21,7 @@ object StackBrowser {
         return follow(next)
     }
 
-    private val http = OkHttpClient.Builder()
+    private val http = AcceptanceTrace.client().newBuilder()
         .followRedirects(false)
         .cookieJar(object : CookieJar {
             private val jar = mutableListOf<Cookie>()

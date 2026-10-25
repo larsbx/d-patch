@@ -74,11 +74,15 @@ class AuthSession(
         return SignInOutcome.SignedIn
     }
 
-    /** Forgets the session here at once, then ends it on biz-kit if reachable. */
-    suspend fun signOut() {
+    /**
+     * Forgets the session here at once, then attempts remote logout once.
+     * The result reports delivery separately from local removal; null means
+     * there was no local session. Unreachable never confirms revocation.
+     */
+    suspend fun signOut(): AuthResult<Unit>? {
         val ended = forget { AuthRecord() }.session
         _signInRequired.value = true
-        ended?.let { api.logout(it.accessToken) }
+        return ended?.let { api.logout(it.accessToken) }
     }
 
     override suspend fun accessToken(): String? = current()
