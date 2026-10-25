@@ -14,7 +14,7 @@ jobs:
   datastar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           token: ${{ secrets.VENDOR_PR_TOKEN || github.token }}
       - id: refresh
@@ -37,7 +37,7 @@ jobs:
   dispatch-contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           token: ${{ secrets.VENDOR_PR_TOKEN || github.token }}
       - run: scripts/sync-dispatch-contract.sh
