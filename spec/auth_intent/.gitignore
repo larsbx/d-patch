@@ -1,0 +1,6 @@
+.lake/
+lake-manifest.json
+_apalache-out/
+*.itf.json
+*.olean
+*.ilean

@@ -259,6 +259,109 @@ class AuthSessionTest {
     }
 
     @Test
+    fun `a principal response arriving after sign-out cannot resurrect the local session`() = runBlocking {
+        val session = session()
+        val arrived = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when (request.path) {
+                "/auth/token" -> MockResponse().setBody("""{"access_token":"late-session","token_type":"Bearer"}""")
+                "/auth/me" -> {
+                    arrived.countDown()
+                    check(release.await(10, TimeUnit.SECONDS))
+                    MockResponse().setBody("""{"principal":"late-principal"}""")
+                }
+                "/auth/logout" -> MockResponse().setResponseCode(204)
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+        val completion = async(Dispatchers.IO) { session.complete(redirect(session.started(), "code" to "c-late")) }
+        try {
+            withContext(Dispatchers.IO) { check(arrived.await(10, TimeUnit.SECONDS)) }
+            assertNull("no session has been installed yet", session.signOut())
+        } finally {
+            release.countDown()
+        }
+        assertEquals(SignInOutcome.Superseded(AuthResult.Ok(Unit)), completion.await())
+        assertEquals(3, server.requestCount)
+        assertNull("a superseded response must not reinstall credentials", session.accessToken())
+        assertNull(session.subject())
+        assertEquals(AuthRecord(), vault.read())
+        assertTrue(session.signInRequired.value)
+    }
+
+    @Test
+    fun `a late grant skips principal and reports refused cleanup without retaining a retry`() = runBlocking {
+        val session = session()
+        val arrived = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when (request.path) {
+                "/auth/token" -> {
+                    arrived.countDown()
+                    check(release.await(10, TimeUnit.SECONDS))
+                    MockResponse().setBody("""{"access_token":"late-grant","token_type":"Bearer"}""")
+                }
+                "/auth/logout" -> MockResponse().setResponseCode(503)
+                else -> error("a superseded grant must not fetch a principal")
+            }
+        }
+        val completion = async(Dispatchers.IO) { session.complete(redirect(session.started(), "code" to "c-late")) }
+        try {
+            withContext(Dispatchers.IO) { check(arrived.await(10, TimeUnit.SECONDS)) }
+            assertNull(session.signOut())
+        } finally {
+            release.countDown()
+        }
+        assertEquals(SignInOutcome.Superseded(AuthResult.Refused(503)), completion.await())
+        assertNull(session.accessToken())
+        assertNull(session.signOut())
+        assertEquals(AuthRecord(), vault.read())
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `an older principal response cannot replace a newer successful sign-in`() = runBlocking {
+        val session = session()
+        val arrived = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val cleanup = mutableListOf<String?>()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when (request.path) {
+                "/auth/token" -> {
+                    val token = if (request.body.readUtf8().contains("c-old")) "old-token" else "new-token"
+                    MockResponse().setBody("""{"access_token":"$token","token_type":"Bearer"}""")
+                }
+                "/auth/me" -> {
+                    if (request.getHeader("Authorization") == "Bearer old-token") {
+                        arrived.countDown()
+                        check(release.await(10, TimeUnit.SECONDS))
+                    }
+                    MockResponse().setBody("""{"principal":"principal"}""")
+                }
+                "/auth/logout" -> {
+                    cleanup.add(request.getHeader("Authorization"))
+                    MockResponse().setResponseCode(204)
+                }
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+        val older = async(Dispatchers.IO) { session.complete(redirect(session.started(), "code" to "c-old")) }
+        try {
+            withContext(Dispatchers.IO) { check(arrived.await(10, TimeUnit.SECONDS)) }
+            assertEquals(SignInOutcome.SignedIn, session.complete(redirect(session.started(), "code" to "c-new")))
+        } finally {
+            release.countDown()
+        }
+        assertEquals(SignInOutcome.Superseded(AuthResult.Ok(Unit)), older.await())
+        assertEquals("new-token", session.accessToken())
+        assertEquals("new-token", vault.read().session?.accessToken)
+        assertFalse(session.signInRequired.value)
+        assertEquals(listOf("Bearer old-token"), cleanup)
+        assertEquals(5, server.requestCount)
+    }
+
+    @Test
     fun `a sign-in whose verifier cannot be kept does not start`() {
         vault.refusing = true
 

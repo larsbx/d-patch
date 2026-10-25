@@ -18,6 +18,9 @@ sealed interface SignInOutcome {
 
     /** The redirect was not for the sign-in in progress; nothing changed. */
     data object Ignored : SignInOutcome
+
+    /** A newer intent won; this one-shot cleanup result never implies local sign-in. */
+    data class Superseded(val remoteLogout: AuthResult<Unit>) : SignInOutcome
 }
 
 /**
@@ -39,6 +42,10 @@ class AuthSession(
 
     @Volatile private var record: AuthRecord = vault.read()
 
+    // Identity, rather than a wrapping counter. Read/rotate/admit under this monitor.
+    private var intent = Any()
+    private data class Completion(val read: Redirect, val pending: PendingSignIn, val intent: Any)
+
     private val _signInRequired = MutableStateFlow(record.session == null)
     override val signInRequired: StateFlow<Boolean> = _signInRequired.asStateFlow()
 
@@ -47,14 +54,17 @@ class AuthSession(
      * when it cannot be kept on disk — its verifier would not survive the app
      * being stopped while the browser is open.
      */
+    @Synchronized
     fun begin(): String? {
         val pending = PendingSignIn.create(random)
-        return if (keep(record.copy(pending = pending))) config.authorizationUrl(pending) else null
+        if (!keep(record.copy(pending = pending))) return null
+        intent = Any()
+        return config.authorizationUrl(pending)
     }
 
     /** Finishes the sign-in the browser has returned from. */
     suspend fun complete(redirect: String): SignInOutcome {
-        val (read, pending) = consume(redirect) ?: return SignInOutcome.Ignored
+        val (read, pending, startedIntent) = consume(redirect) ?: return SignInOutcome.Ignored
         val code = when (read) {
             is Redirect.Code -> read.code
             else -> return SignInOutcome.Denied
@@ -64,14 +74,14 @@ class AuthSession(
             is AuthResult.Ok -> exchanged.value
             else -> return failed(exchanged)
         }
+        if (!isCurrent(startedIntent)) return SignInOutcome.Superseded(api.logout(grant.accessToken))
         val subject = when (val principal = api.principal(grant.accessToken)) {
             is AuthResult.Ok -> principal.value
-            else -> return failed(principal)
+            else -> return if (!isCurrent(startedIntent)) SignInOutcome.Superseded(api.logout(grant.accessToken)) else failed(principal)
         }
         val signedIn = SignedIn(grant.accessToken, subject, grant.expiresInSeconds?.let { clock.millis() + it * 1000 })
-        if (!keep(AuthRecord(session = signedIn))) return SignInOutcome.Failed(reachable = true)
-        _signInRequired.value = false
-        return SignInOutcome.SignedIn
+        return admit(startedIntent, signedIn)
+            ?: SignInOutcome.Superseded(api.logout(grant.accessToken))
     }
 
     /**
@@ -80,8 +90,7 @@ class AuthSession(
      * there was no local session. Unreachable never confirms revocation.
      */
     suspend fun signOut(): AuthResult<Unit>? {
-        val ended = forget { AuthRecord() }.session
-        _signInRequired.value = true
+        val ended = endLocal()
         return ended?.let { api.logout(it.accessToken) }
     }
 
@@ -110,12 +119,32 @@ class AuthSession(
      * code too.
      */
     @Synchronized
-    private fun consume(redirect: String): Pair<Redirect, PendingSignIn>? {
+    private fun consume(redirect: String): Completion? {
         val pending = record.pending ?: return null
         val read = config.read(redirect, pending)
         if (read == Redirect.Unsolicited) return null
         forget { it.copy(pending = null) }
-        return read to pending
+        return Completion(read, pending, intent)
+    }
+
+    @Synchronized
+    private fun isCurrent(startedIntent: Any): Boolean = startedIntent === intent
+
+    /** Admission and local sign-out are atomic relative to each other and begin. */
+    @Synchronized
+    private fun admit(startedIntent: Any, signedIn: SignedIn): SignInOutcome? {
+        if (startedIntent !== intent) return null
+        if (!keep(AuthRecord(session = signedIn))) return SignInOutcome.Failed(reachable = true)
+        _signInRequired.value = false
+        return SignInOutcome.SignedIn
+    }
+
+    @Synchronized
+    private fun endLocal(): SignedIn? {
+        intent = Any()
+        val ended = forget { AuthRecord() }.session
+        _signInRequired.value = true
+        return ended
     }
 
     /** Stores [next]; false, with nothing changed, when the disk refuses it. */

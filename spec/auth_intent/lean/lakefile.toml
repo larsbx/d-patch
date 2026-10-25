@@ -1,0 +1,6 @@
+name = "auth_intent"
+version = "0.1.0"
+defaultTargets = ["AuthIntent"]
+
+[[lean_lib]]
+name = "AuthIntent"

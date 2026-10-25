@@ -41,7 +41,7 @@ class SignInFlow(
 
     suspend fun finish(redirect: String) {
         when (val outcome = session.complete(redirect)) {
-            SignInOutcome.Ignored -> Unit
+            SignInOutcome.Ignored, is SignInOutcome.Superseded -> Unit
             SignInOutcome.Denied -> _message.value = "Sign-in was cancelled."
             is SignInOutcome.Failed ->
                 _message.value = if (outcome.reachable) "Sign-in did not complete. Try again." else "Connect to the internet to sign in."
