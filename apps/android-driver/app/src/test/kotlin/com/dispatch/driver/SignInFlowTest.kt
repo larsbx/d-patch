@@ -8,9 +8,15 @@ import com.dispatch.driver.core.auth.Vault
 import com.dispatch.driver.core.model.capability.CapabilityProvider
 import com.dispatch.driver.core.model.capability.CapabilityState
 import com.dispatch.driver.core.model.capability.SyncRequester
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -18,6 +24,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** What a finished sign-in sets going, and what the participant is told when it does not finish. */
 class SignInFlowTest {
@@ -71,6 +79,36 @@ class SignInFlowTest {
         // Now, not after the backoff the refused session earned.
         assertEquals(1, syncsNow)
         assertEquals(0, syncs)
+        assertNull(flow.message.value)
+    }
+
+    @Test
+    fun `a superseded response never refreshes capabilities or starts synchronization`() = runBlocking {
+        val arrived = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when (request.path) {
+                "/auth/token" -> MockResponse().setBody("""{"access_token":"late","token_type":"Bearer"}""")
+                "/auth/me" -> {
+                    arrived.countDown()
+                    check(release.await(10, TimeUnit.SECONDS))
+                    MockResponse().setBody("""{"principal":"principal"}""")
+                }
+                "/auth/logout" -> MockResponse().setResponseCode(204)
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+        val completion = async(Dispatchers.IO) { flow.finish(back(flow.started(), "code=c-late")) }
+        try {
+            withContext(Dispatchers.IO) { check(arrived.await(10, TimeUnit.SECONDS)) }
+            session.signOut()
+        } finally {
+            release.countDown()
+        }
+        completion.await()
+        assertNull(session.accessToken())
+        assertEquals(0, refreshes)
+        assertEquals(0, syncs + syncsNow)
         assertNull(flow.message.value)
     }
 
