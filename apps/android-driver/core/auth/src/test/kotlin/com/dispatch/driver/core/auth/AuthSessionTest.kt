@@ -259,6 +259,37 @@ class AuthSessionTest {
     }
 
     @Test
+    fun `a principal response arriving after sign-out cannot resurrect the local session`() = runBlocking {
+        val session = session()
+        val arrived = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when (request.path) {
+                "/auth/token" -> MockResponse().setBody("""{"access_token":"late-session","token_type":"Bearer"}""")
+                "/auth/me" -> {
+                    arrived.countDown()
+                    check(release.await(10, TimeUnit.SECONDS))
+                    MockResponse().setBody("""{"principal":"late-principal"}""")
+                }
+                "/auth/logout" -> MockResponse().setResponseCode(204)
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+        val completion = async(Dispatchers.IO) { session.complete(redirect(session.started(), "code" to "c-late")) }
+        try {
+            withContext(Dispatchers.IO) { check(arrived.await(10, TimeUnit.SECONDS)) }
+            assertNull("no session has been installed yet", session.signOut())
+        } finally {
+            release.countDown()
+        }
+        completion.await()
+        assertNull("a superseded response must not reinstall credentials", session.accessToken())
+        assertNull(session.subject())
+        assertEquals(AuthRecord(), vault.read())
+        assertTrue(session.signInRequired.value)
+    }
+
+    @Test
     fun `a sign-in whose verifier cannot be kept does not start`() {
         vault.refusing = true
 
