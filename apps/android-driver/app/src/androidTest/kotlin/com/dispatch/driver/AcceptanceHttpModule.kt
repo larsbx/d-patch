@@ -12,11 +12,13 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.CopyOnWriteArrayList
 
 /** Test-only metadata. No URLs, headers, bodies, identities or exception messages. */
 object AcceptanceTrace {
     private val sequence = AtomicInteger()
-    fun record(message: String) { Log.i("DispatchAcceptance", message) }
+    val clients = CopyOnWriteArrayList<OkHttpClient>()
+    fun record(message: String) { Log.i("DispatchAcceptance", "elapsedMs=${android.os.SystemClock.elapsedRealtime()} $message") }
     fun client(): OkHttpClient = OkHttpClient.Builder().eventListenerFactory {
         val id = sequence.incrementAndGet()
         object : EventListener() {
@@ -26,7 +28,7 @@ object AcceptanceTrace {
                     "/auth/token" -> "token"
                     "/auth/me" -> "principal"
                     "/auth/logout" -> "logout"
-                    "/v1/status-declarations" -> "status"
+                    "/v1/me/status-events" -> "status"
                     else -> "other"
                 }
                 record("call=$id operation=$operation start")
@@ -39,7 +41,7 @@ object AcceptanceTrace {
             override fun callEnd(call: Call) { record("call=$id end") }
             override fun callFailed(call: Call, ioe: IOException) { record("call=$id failed=${ioe.javaClass.simpleName}") }
         }
-    }.build()
+    }.build().also { clients += it }
 }
 
 @Module
