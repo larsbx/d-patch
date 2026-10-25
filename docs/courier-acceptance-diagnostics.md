@@ -12,6 +12,12 @@ Server source: `38c7efc237943a5600d3a0e3083c97f8ecef5758`; workflow-only diagnos
 
 All three courier traces show the old helper returning from network restoration with `active=false`, followed by ConnectException on the first online sync. Their logout calls attempted a reused connection, then a new connection, received 204 and were followed by 401. This demonstrates a missing readiness barrier and connection recovery; it does not prove that reused connections caused either historical assertion failure. No server revocation defect was demonstrated.
 
+## Original artifact evidence recovered
+
+The full server log in artifact `12610330770` from the original failing retry records two status requests, status-row inserts at 18:46:27.573Z (AT_PICKUP) and 18:46:27.938Z (LOADING), and HTTP 201 responses at 18:46:27.635Z and 18:46:27.949Z, just before the line-87 failure. Source ordering places the declarations/sync after the helper's default-network-null check. This establishes status traffic across the supposed offline boundary; the exact SyncOutcome was not recorded. Background overlap versus residual pooled transport is not distinguished by this artifact.
+
+Original logout-failure artifact `12609594264` records a native-session insert and no native-session deletion. Auth HTTP requests and the client delivery result were not logged, so that absence is consistent with nondelivery but does not establish its cause. No server revocation defect has been demonstrated. In the repaired courier trials, WorkManager state was ENQUEUED during the inspected offline intervals; this does not retrospectively exclude historical background overlap. Evidence and sanitized timestamps are retained in biz-kit#125.
+
 ## Changes and preserved guarantees
 
 - The test waits for the requested Android default-network state **and** actual read-only HTTP outcomes at both stack services through existing pools and a fresh pool. There is no pool eviction, status-response substitution or logout retry. A readiness timeout fails acceptance and still attempts network restoration.
@@ -29,3 +35,5 @@ AuthSession regressions gate a delayed remote response to prove local removal pr
 Local Python checks and shell syntax validation are runnable without Android. This work container has no Android SDK or KVM; a local Gradle attempt also failed at distribution download with Network is unreachable. Emulator acceptance is therefore a hosted-run result, not a local result.
 
 The initial d-patch CI run also exposed an independent pre-existing central dependency-audit failure (Ash/AshPostgres advisories). It is separate from mobile acceptance and must not be waived by this repair.
+
+Prerequisite d-patch#31 is included: advisory-fixed Ash 3.37.1, AshPostgres 2.15.2 and required AshSQL 0.8.4, plus the upstream version-7 required-value helper migration/snapshot and integration regression. The advisory gate stays enforced.

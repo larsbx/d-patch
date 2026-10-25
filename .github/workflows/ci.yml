@@ -338,6 +338,10 @@ jobs:
       # repository; this fails when a resource change has not been generated.
       - run: mix ash_postgres.generate_migrations --check
         working-directory: central
+      - name: Show pending migration without applying it
+        if: failure()
+        run: mix ash_postgres.generate_migrations --dry-run
+        working-directory: central
 
   secret-scan:
     name: secret-scan
