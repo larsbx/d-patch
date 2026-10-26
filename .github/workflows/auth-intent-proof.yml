@@ -26,3 +26,5 @@ jobs:
           tar --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/lean-4.35.0-linux/bin" >> "$GITHUB_PATH"
       - run: bash spec/auth_intent/check.sh
+      - name: Status synchronization obligations
+        run: bash spec/status_sync/check.sh

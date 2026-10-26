@@ -9,6 +9,12 @@ import com.dispatch.driver.core.model.status.CurrentStatus
 import com.dispatch.driver.core.model.status.StatusDeclaration
 import com.dispatch.driver.core.model.status.StatusTransport
 import com.dispatch.driver.core.model.status.SubmitResult
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -217,6 +223,119 @@ class StatusOutboxTest {
 
         assertTrue(events().all { it.state == PendingState.ACKNOWLEDGED })
         assertEquals("DELAYED", outbox.view().first().acknowledged?.value)
+    }
+
+    @Test
+    fun `concurrent facades wait then reread pending rows without stale response overwrite`() = runBlocking {
+        outbox.declare("AT_PICKUP", null, "ra-1")
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val sent = mutableListOf<Long>()
+        val older = async {
+            outbox.sync(object : StatusTransport {
+                override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult {
+                    sent += declaration.deviceSequence
+                    val generatedBeforeNewerPass = stored(declaration)
+                    entered.complete(Unit)
+                    release.await()
+                    return generatedBeforeNewerPass
+                }
+            })
+        }
+        val phases = mutableListOf<SyncPhase>()
+        val newer = StatusOutbox(database, clock = { now })
+        val later = try {
+            withTimeout(10_000) { entered.await() }
+            // Declarations are not held behind HTTP; this row is absent from
+            // the older pass's snapshot, so the waiting pass must discover it.
+            outbox.declare("LOADING", null, "ra-1")
+            async(start = CoroutineStart.UNDISPATCHED) {
+                newer.sync(object : StatusTransport {
+                    override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult {
+                        sent += declaration.deviceSequence
+                        return stored(declaration)
+                    }
+                }, phases::add)
+            }.also {
+                // UNDISPATCHED reaches the contended mutex before returning;
+                // there are no database operations before that boundary.
+                assertEquals(listOf(SyncPhase.WAITING), phases)
+            }
+        } finally {
+            release.complete(Unit)
+        }
+        assertEquals(SyncOutcome.RetryAt(now), older.await())
+        assertEquals(SyncOutcome.Drained, later.await())
+        assertEquals(listOf(1L, 2L), sent)
+        assertEquals(listOf(SyncPhase.WAITING, SyncPhase.STARTED, SyncPhase.FINISHED), phases)
+        assertTrue(events().all { it.state == PendingState.ACKNOWLEDGED })
+        assertEquals("LOADING", outbox.view().first().acknowledged?.value)
+    }
+
+    @Test
+    fun `cancelling a waiting pass never releases another pass ownership`() = runBlocking {
+        outbox.declare("AT_PICKUP", null, "ra-1")
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val owner = async {
+            outbox.sync(object : StatusTransport {
+                override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult {
+                    entered.complete(Unit)
+                    release.await()
+                    return stored(declaration)
+                }
+            })
+        }
+        try {
+            withTimeout(10_000) { entered.await() }
+            val cancelledPhases = mutableListOf<SyncPhase>()
+            val waiter = async(start = CoroutineStart.UNDISPATCHED) { outbox.sync(Server(::stored), cancelledPhases::add) }
+            waiter.cancelAndJoin()
+            assertEquals(listOf(SyncPhase.WAITING), cancelledPhases)
+            val nextPhases = mutableListOf<SyncPhase>()
+            val next = async(start = CoroutineStart.UNDISPATCHED) { outbox.sync(Server(::stored), nextPhases::add) }
+            assertEquals(listOf(SyncPhase.WAITING), nextPhases)
+            release.complete(Unit)
+            assertEquals(SyncOutcome.Drained, next.await())
+            assertEquals(listOf(SyncPhase.WAITING, SyncPhase.STARTED, SyncPhase.FINISHED), nextPhases)
+        } finally {
+            release.complete(Unit)
+        }
+        assertEquals(SyncOutcome.Drained, owner.await())
+    }
+
+    @Test
+    fun `cancelling an owner releases ownership and retries the exact immutable declaration`() = runBlocking {
+        outbox.declare("AT_PICKUP", null, "ra-1")
+        val entered = CompletableDeferred<Unit>()
+        val sent = mutableListOf<String>()
+        val phases = mutableListOf<SyncPhase>()
+        val owner = async {
+            outbox.sync(object : StatusTransport {
+                override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult {
+                    sent += declaration.toCanonicalJson()
+                    entered.complete(Unit)
+                    CompletableDeferred<Unit>().await()
+                    error("cancelled response must not settle the row")
+                }
+            }, phases::add)
+        }
+        withTimeout(10_000) { entered.await() }
+        owner.cancelAndJoin()
+        assertEquals(listOf(SyncPhase.WAITING, SyncPhase.STARTED, SyncPhase.FINISHED), phases)
+        assertEquals(PendingState.PENDING, events().single().state)
+        val replacement = StatusOutbox(database, clock = { now })
+        assertEquals(SyncOutcome.Drained, withTimeout(10_000) {
+            replacement.sync(object : StatusTransport {
+                override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult {
+                    sent += declaration.toCanonicalJson()
+                    return stored(declaration)
+                }
+            })
+        })
+        assertEquals(2, sent.size)
+        assertEquals(sent[0], sent[1])
+        assertEquals(PendingState.ACKNOWLEDGED, events().single().state)
     }
 
     @Test

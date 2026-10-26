@@ -100,7 +100,7 @@ class AgainstTheStackTest {
             val workers = WorkManager.getInstance(InstrumentationRegistry.getInstrumentation().targetContext)
                 .getWorkInfosForUniqueWork(SyncWorker.UNIQUE_NAME).get().map { it.state }
             AcceptanceTrace.record("workers=$workers")
-            val offline = outbox.sync(transport)
+            val offline = outbox.sync(transport) { AcceptanceTrace.record("sync phase=$it") }
             AcceptanceTrace.record("offline outcome=$offline states=${outbox.view().first().events.map { it.state }}")
             observeServer("OFFLINE", interval, 0)
             assertTrue("offline outcome=$offline", offline is SyncOutcome.RetryAt)
