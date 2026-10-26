@@ -41,7 +41,7 @@ defmodule Dispatch.MixProject do
   defp deps do
     [
       # Domain, persistence, and authorization (Section 19.1).
-      {:ash, "~> 3.0"},
+      {:ash, ">= 3.37.2 and < 4.0.0"},
       {:ash_postgres, "~> 2.10"},
       {:ash_phoenix, "~> 2.0"},
       {:ash_authentication, "~> 4.0"},
