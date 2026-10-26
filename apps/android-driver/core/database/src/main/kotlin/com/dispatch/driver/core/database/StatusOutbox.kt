@@ -9,6 +9,7 @@ import com.dispatch.driver.core.model.status.StatusDeclaration
 import com.dispatch.driver.core.model.status.StatusTransport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import java.time.Instant
 
@@ -70,7 +71,21 @@ class StatusOutbox(
      * its event and stops the pass, because the next one would meet the same
      * network.
      */
-    suspend fun sync(transport: StatusTransport): SyncOutcome {
+    suspend fun sync(transport: StatusTransport, observe: (SyncPhase) -> Unit = {}): SyncOutcome {
+        observe(SyncPhase.WAITING)
+        return database.statusSync.withLock {
+            try {
+                observe(SyncPhase.STARTED)
+                // Read due rows only after acquiring ownership. A waiting pass
+                // must not resend a snapshot another pass has already settled.
+                syncPass(transport)
+            } finally {
+                observe(SyncPhase.FINISHED)
+            }
+        }
+    }
+
+    private suspend fun syncPass(transport: StatusTransport): SyncOutcome {
         for (event in dao.due(KIND, clock())) {
             val declaration = StatusDeclaration.fromCanonicalJson(event.canonicalJson)
             when (val disposition = Disposition.of(transport.submit(declaration, event.roleAssignmentId))) {
@@ -143,6 +158,9 @@ class StatusOutbox(
             (BASE_BACKOFF_MILLIS shl (attempt - 1).coerceIn(0, 16)).coerceAtMost(MAX_BACKOFF_MILLIS)
     }
 }
+
+/** Optional diagnostics contain phases only: no event bodies, identifiers or credentials. */
+enum class SyncPhase { WAITING, STARTED, FINISHED }
 
 sealed interface SyncOutcome {
     /** Nothing left pending. */

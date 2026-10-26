@@ -37,3 +37,18 @@ Local Python checks and shell syntax validation are runnable without Android. Th
 The initial d-patch CI run also exposed an independent pre-existing central dependency-audit failure (Ash/AshPostgres advisories). It is separate from mobile acceptance and must not be waived by this repair.
 
 Prerequisite d-patch#31 is included: advisory-fixed Ash 3.37.1, AshPostgres 2.15.2 and required AshSQL 0.8.4, plus the upstream version-7 required-value helper migration/snapshot and integration regression. The advisory gate stays enforced.
+
+## Continued investigation: overlapping synchronization
+
+D-patch#34 records a second demonstrated client concurrency defect. StatusOutbox
+was unchanged from the original client pin and permitted overlapping passes to
+snapshot the same rows. A gated, corrected baseline [run 40281812181](https://github.com/larsbx/d-patch/actions/runs/40281812181)
+failed when a delayed AT_PICKUP response overwrote LOADING already observed by a
+newer pass. The earlier virtual-clock timeout is explicitly excluded as evidence.
+
+The repair gives each shared Room database one status-pass owner, with the due-row
+read inside that boundary and cancellation-safe release. Declarations remain
+writable during transport. Scoped Lean/Quint checks, negative controls, exact-byte
+retry and cancellation tests are documented in [the proof obligations](../spec/status_sync/README.md).
+This proves a reproducible client defect, not the mechanism of either historical
+courier failure. #125 remains open for missing original outcome/overlap evidence.

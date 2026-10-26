@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import kotlinx.coroutines.sync.Mutex
 
 @Database(
     entities = [PendingEventEntity::class, CachedDriverStateEntity::class, CachedCapabilityDocumentEntity::class],
@@ -11,6 +12,10 @@ import androidx.room.RoomDatabase
     exportSchema = true,
 )
 abstract class DispatchDatabase : RoomDatabase() {
+    // One pass per status table, including separate facades over this database.
+    // This is not a Room transaction: declarations remain writable during HTTP.
+    internal val statusSync = Mutex()
+
     abstract fun outbox(): OutboxDao
 
     companion object {
