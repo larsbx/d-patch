@@ -9,6 +9,9 @@ import com.dispatch.driver.core.model.status.CurrentStatus
 import com.dispatch.driver.core.model.status.StatusDeclaration
 import com.dispatch.driver.core.model.status.StatusTransport
 import com.dispatch.driver.core.model.status.SubmitResult
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -217,6 +220,36 @@ class StatusOutboxTest {
 
         assertTrue(events().all { it.state == PendingState.ACKNOWLEDGED })
         assertEquals("DELAYED", outbox.view().first().acknowledged?.value)
+    }
+
+    @Test
+    fun `a late response cannot overwrite a newer overlapping pass`() = runTest {
+        outbox.declare("AT_PICKUP", null, "ra-1")
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val older = async {
+            outbox.sync(object : StatusTransport {
+                override suspend fun submit(declaration: StatusDeclaration, roleAssignmentId: String): SubmitResult {
+                    val generatedBeforeNewerPass = stored(declaration)
+                    entered.complete(Unit)
+                    release.await()
+                    return generatedBeforeNewerPass
+                }
+            })
+        }
+        try {
+            withTimeout(10_000) { entered.await() }
+            outbox.declare("LOADING", null, "ra-1")
+            // A second facade over the same Room database, as a second caller.
+            val newer = StatusOutbox(database, clock = { now })
+            assertEquals(SyncOutcome.Drained, withTimeout(10_000) { newer.sync(Server(::stored)) })
+            assertEquals("LOADING", outbox.view().first().acknowledged?.value)
+        } finally {
+            release.complete(Unit)
+        }
+        assertEquals(SyncOutcome.Drained, older.await())
+        assertTrue(events().all { it.state == PendingState.ACKNOWLEDGED })
+        assertEquals("an older response must not replace newer observed server truth", "LOADING", outbox.view().first().acknowledged?.value)
     }
 
     @Test
