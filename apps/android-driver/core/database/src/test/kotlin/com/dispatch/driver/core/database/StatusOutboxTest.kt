@@ -9,6 +9,7 @@ import com.dispatch.driver.core.model.status.CurrentStatus
 import com.dispatch.driver.core.model.status.StatusDeclaration
 import com.dispatch.driver.core.model.status.StatusTransport
 import com.dispatch.driver.core.model.status.SubmitResult
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeout
@@ -223,7 +224,7 @@ class StatusOutboxTest {
     }
 
     @Test
-    fun `a late response cannot overwrite a newer overlapping pass`() = runTest {
+    fun `a late response cannot overwrite a newer overlapping pass`() = runBlocking {
         outbox.declare("AT_PICKUP", null, "ra-1")
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
