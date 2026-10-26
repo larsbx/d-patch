@@ -71,7 +71,9 @@ class StatusOutbox(
      * its event and stops the pass, because the next one would meet the same
      * network.
      */
-    suspend fun sync(transport: StatusTransport, observe: (SyncPhase) -> Unit = {}): SyncOutcome {
+    suspend fun sync(transport: StatusTransport): SyncOutcome = sync(transport) {}
+
+    suspend fun sync(transport: StatusTransport, observe: (SyncPhase) -> Unit): SyncOutcome {
         observe(SyncPhase.WAITING)
         return database.statusSync.withLock {
             try {
