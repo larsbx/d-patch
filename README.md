@@ -58,6 +58,10 @@ scripts/               invariant and layout checks run by CI
 Each deployable directory has its own README with local commands,
 configuration, health checks, test commands, and failure modes.
 
+> Proposed [ADR-0015](docs/adr/0015-biz-kit-extension-and-hawala-client-boundaries.md)
+> aligns the independent Dispatch clients with biz-kit's extension contract and
+> preserves Hawala's separate financial authority; no live financial integration is enabled.
+
 ## Architectural commitments
 
 These are the ones that shape everything else.
