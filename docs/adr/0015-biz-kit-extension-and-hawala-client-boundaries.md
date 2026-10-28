@@ -10,7 +10,7 @@
 
 Accepted [ADR-0010](0010-the-server-is-biz-kit-apps-dispatch.md) places the Dispatch server, Ash policy, migrations and generated OpenAPI in `biz-kit/apps/dispatch`. The `central/` directory in d-patch is a frozen test-compatible snapshot, not a second server development branch. [ADR-0011](0011-android-signs-in-through-biz-kit.md) covers native sign-in, and [ADR-0012](0012-device-keys-are-self-registered-ed25519.md) governs signed device declarations.
 
-Biz-kit is defining a common extension contract. Hawala-core and biz-kit are independently proposing a network-native Hawala capability (open #42/#173). Dispatch may eventually initiate delivery-fee payments or settlement-related workflows, but it owns *transport facts*, not financial authority. Platform contract work must not cause this repository to implement a shadow Dispatch backend or a money ledger.
+Biz-kit is defining a common extension contract. Hawala-core and biz-kit are independently proposing a network-native Hawala capability (merged Proposed ADRs #42/#173, with G1–G11 still open). Dispatch may eventually initiate delivery-fee payments or settlement-related workflows, but it owns *transport facts*, not financial authority. Platform contract work must not cause this repository to implement a shadow Dispatch backend or a money ledger.
 
 ## Decision
 
