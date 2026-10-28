@@ -4,7 +4,7 @@
 - **Date:** 2026-10-28
 - **Deciders:** platform and Dispatch maintainers
 - **Specification sections:** §19.1, §20, §21, §34 (existing contract and backend authority)
-- **Companions:** [biz-kit extension ADR](https://github.com/larsbx/biz-kit/blob/main/docs/architecture/2026-10-28-cross-repository-extension-and-hawala-capability.md), [hawala-core ADR 0006](https://github.com/larsbx/hawala-core/blob/main/docs/decisions/0006-biz-kit-extension-host-boundary.md), [Eatsbot ADR](https://github.com/larsbx/eatsbot/blob/dev/docs/modules/decisions/pages/biz-kit-interoperability-and-source-ownership.adoc), [school-ops decision 0007](https://github.com/larsbx/school-ops/blob/main/docs/decisions/0007-biz-kit-content-authority-and-extension-contract.md).
+- **Companions:** [biz-kit extension ADR](https://github.com/larsbx/biz-kit/blob/main/docs/architecture/2026-10-28-cross-repository-extension-and-hawala-capability.md), [hawala-core ADR 0006](https://github.com/larsbx/hawala-core/blob/main/docs/decisions/0006-biz-kit-extension-host-boundary.md), [Eatsbot retirement ADR](https://github.com/larsbx/eatsbot/blob/dev/docs/modules/decisions/pages/biz-kit-interoperability-and-source-ownership.adoc), [school-ops decision 0007](https://github.com/larsbx/school-ops/blob/main/docs/decisions/0007-biz-kit-content-authority-and-extension-contract.md).
 
 ## Context
 
