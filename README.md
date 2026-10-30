@@ -1,5 +1,9 @@
 # Dispatch Platform
 
+> Storage decision (2026-10-30): [ADR-0016: Clients consume platform storage and delivery contracts](docs/adr/0016-platform-storage-and-delivery.md).
+> Selected integration target; implementation and cutover remain gated.
+> Current services, permissions and durable owners remain in force.
+
 A role-aware Android field application and an operations web portal sharing one
 current operational view of a participant, trip, load, communications, and
 location.
