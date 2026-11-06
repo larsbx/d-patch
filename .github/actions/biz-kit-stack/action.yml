@@ -20,14 +20,14 @@ runs:
   steps:
     - id: ref
       uses: ./.github/actions/biz-kit-ref
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with: { repository: larsbx/biz-kit, ref: "${{ steps.ref.outputs.ref }}", path: biz-kit }
     - uses: erlef/setup-beam@v1
       with: { otp-version: "27.3.4", elixir-version: "1.19.0" }
     # The Rust NIF's output lives in the source tree, not _build: cache it
     # with the build, or a restored build skips the compile that wrote it and
     # the stack cannot load it. Keyed on the NIF's sources as well.
-    - uses: actions/cache@v4
+    - uses: actions/cache@v6
       with:
         path: |
           biz-kit/deps
