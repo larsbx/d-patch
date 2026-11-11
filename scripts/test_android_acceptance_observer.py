@@ -24,6 +24,15 @@ class ObserverTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "actual=1"):
             observer.observe("OFFLINE", "one")
 
+    def test_offline_count_violation_is_acknowledged_before_observer_exits(self):
+        observer = self.observer([8, 10])
+        acknowledgements = []
+        observe = module.acknowledge_observation
+        observe(observer, "START", "one", acknowledgements.append)
+        with self.assertRaisesRegex(module.UnexpectedCount, "OFFLINE expected=0 actual=2"):
+            observe(observer, "OFFLINE", "one", acknowledgements.append)
+        self.assertEqual([0, 2], acknowledgements)
+
     def test_duplicate_business_effect_fails(self):
         observer = self.observer([8, 11])
         observer.observe("START", "one")
