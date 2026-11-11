@@ -23,7 +23,7 @@ port. Override with `E2E_BASE_URL` to test a different origin. Set
 
 The server now lives in biz-kit (ADR-0010), so Slice 1's exit criterion runs
 against biz-kit's one-command stack rather than Compose: dispatch on `:4000`,
-SpruceGoose's `/auth` on `:4001`, a seeded carrier with a `DRIVER`, a
+TaskHost's `/auth` on `:4001`, a seeded carrier with a `DRIVER`, a
 `DISPATCHER`, a `COURIER`, two `ADMIN`s and a `BROKER` of an unrelated load,
 the driver's planned trip, and a development identity provider that signs
 each of them in. Each person signs in once per run and keeps the session, as
@@ -45,6 +45,10 @@ field app's side is `support/field-app.js`, which speaks the app's protocol
 byte for byte: PKCE sign-in, the capability document, an Ed25519 device key
 registered with dispatch, and declarations signed when queued and sent later,
 checked against biz-kit's own signing vectors (`biz-kit/signing.spec.js`).
+`biz-kit/authentication.spec.js` checks the TaskHost callback origin and provider
+route, PKCE rejection and replay, and Dispatch's browser session before and
+after native logout. To run only this acceptance path, use
+`npx playwright test -c biz-kit.config.js biz-kit/authentication.spec.js`.
 
 The installed app itself runs against the same stack on an emulator
 (`apps/android-driver/app/src/androidTest`, CI job `android-e2e-biz-kit`), once

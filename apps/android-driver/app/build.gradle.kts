@@ -68,7 +68,7 @@ android {
             // The Android emulator's address for the host running `make up`.
             buildConfigField("String", "API_BASE_URL", "http://10.0.2.2:4000/".asBuildConfigString())
             buildConfigField("String", "CAPABILITY_PUBLIC_KEY", developmentCapabilityKey.asBuildConfigString())
-            // SpruceGoose on the host, started with SPRUCE_GOOSE_MCP_ENABLED=true MCP_PORT=4001.
+            // TaskHost on the host, started with the biz-kit end-to-end stack.
             buildConfigField("String", "AUTH_BASE_URL", (authBaseUrl ?: "http://10.0.2.2:4001/").asBuildConfigString())
             buildConfigField("String", "AUTH_PROVIDER", authProvider.asBuildConfigString())
             isMinifyEnabled = false

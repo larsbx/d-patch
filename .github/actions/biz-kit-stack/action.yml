@@ -1,5 +1,5 @@
 # biz-kit's end-to-end stack (its scripts/e2e-stack.sh), started in the
-# background for this job: dispatch on :4000, SpruceGoose's /auth on :4001.
+# background for this job: dispatch on :4000, TaskHost's /auth on :4001.
 # The job provides PostgreSQL with PostGIS on :5432 (user and password
 # "postgres"), because a composite action cannot declare a service.
 #
@@ -43,7 +43,8 @@ runs:
       run: |
         nohup scripts/e2e-stack.sh > "$RUNNER_TEMP/biz-kit-stack.log" 2>&1 &
         for _ in $(seq 1 120); do
-          if curl -sf -o /dev/null http://127.0.0.1:4000/health/live && curl -s -o /dev/null http://127.0.0.1:4001/auth/me; then
+          if curl -sf -o /dev/null http://127.0.0.1:4000/health/live &&
+             [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4001/auth/me)" = 401 ]; then
             echo "biz-kit stack is up (ref ${{ steps.ref.outputs.ref }})"; exit 0
           fi
           sleep 5

@@ -1,6 +1,6 @@
 // Playwright configuration for the Section 33.4 scenarios run against biz-kit
 // (d-patch ADR-0010): its one-command stack, `scripts/e2e-stack.sh`, serves
-// dispatch on :4000 and SpruceGoose's /auth on :4001, and writes the stack file
+// dispatch on :4000 and TaskHost's /auth on :4001, and writes the stack file
 // the tests read (E2E_STACK). The scenarios share one seeded tenant and run in
 // order.
 

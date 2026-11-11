@@ -22,7 +22,7 @@ Requires an Android SDK. Point at it with `local.properties`
 | Application ID | `app/build.gradle.kts` | `com.dispatch.driver` is a placeholder; see ADR-0003 |
 | `minSdk` | `gradle/libs.versions.toml` | 29, fixed by §19.1 |
 | API base URL | `BuildConfig.API_BASE_URL` | Debug: `http://10.0.2.2:4000/` (the host's local server, cleartext to that host only). Release: `-Pdispatch.apiBaseUrl=https://…`, required. No provider credential ships in the client (§3.1) |
-| Sign-in | `BuildConfig.AUTH_BASE_URL`, `AUTH_PROVIDER` | ADR-0011. biz-kit's `/auth` (SpruceGoose). Debug: `http://10.0.2.2:4001/`, for SpruceGoose on the host with `SPRUCE_GOOSE_MCP_ENABLED=true MCP_PORT=4001` and `BIZKIT_NATIVE_REDIRECT_URIS=com.dispatch.driver:/oauth2redirect`. Release: `-Pdispatch.authBaseUrl=https://…`, required. Provider: `-Pdispatch.authProvider`, default `workos` |
+| Sign-in | `BuildConfig.AUTH_BASE_URL`, `AUTH_PROVIDER` | ADR-0011. biz-kit's `/auth` (TaskHost). Debug: `http://10.0.2.2:4001/`, for TaskHost on the host started with `scripts/e2e-stack.sh` and `SPRUCE_GOOSE_PUBLIC_URL=http://10.0.2.2:4001`. Release: `-Pdispatch.authBaseUrl=https://…`, required. Provider: `-Pdispatch.authProvider`, default `workos` |
 | Capability key | `BuildConfig.CAPABILITY_PUBLIC_KEY` | ADR-0009. Base64url Ed25519. Debug pins `infra/capability-signing/development.pub` (biz-kit's published development seed). Release: `-Pdispatch.capabilityPublicKey=…`, required; the development key is refused |
 | Maps key | not provisioned | §28.3 restricts it by application ID and signing certificate, which ADR-0003 blocks until the ID is decided |
 
