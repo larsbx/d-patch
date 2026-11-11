@@ -17,6 +17,12 @@ def count_events():
     ], text=True, stderr=subprocess.DEVNULL).strip())
 
 
+class UnexpectedCount(ValueError):
+    def __init__(self, operation, expected, actual):
+        super().__init__(f"{operation} expected={expected} actual={actual}")
+        self.actual = actual
+
+
 class Observer:
     def __init__(self, count=count_events):
         self.count = count
@@ -33,8 +39,19 @@ class Observer:
         delta = self.count() - self.baselines[nonce]
         expected = {"OFFLINE": 0, "REPLAYED": 2}[operation]
         if delta != expected:
-            raise ValueError(f"{operation} expected={expected} actual={delta}")
+            raise UnexpectedCount(operation, expected, delta)
         return delta
+
+
+def acknowledge_observation(observer, operation, nonce, acknowledge):
+    try:
+        delta = observer.observe(operation, nonce)
+    except UnexpectedCount as error:
+        # Unblock the instrumentation assertion with the actual count.
+        acknowledge(error.actual)
+        raise
+    acknowledge(delta)
+    return delta
 
 
 def main():
@@ -51,10 +68,11 @@ def main():
             match = pattern.search(line.rstrip())
             if match:
                 operation, nonce = match.groups()
-                delta = observer.observe(operation, nonce)
                 # Every interpolated component is validated or an integer.
                 path = f"/data/local/tmp/dispatch-acceptance-{nonce}-{operation}"
-                subprocess.run(["adb", "shell", f"echo {delta} > {path}"], check=True)
+                def acknowledge(delta):
+                    subprocess.run(["adb", "shell", f"echo {delta} > {path}"], check=True)
+                delta = acknowledge_observation(observer, operation, nonce, acknowledge)
                 print(f"server observation={operation} delta={delta}", flush=True)
     finally:
         logcat.terminate()

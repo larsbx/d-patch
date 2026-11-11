@@ -100,6 +100,7 @@ class AgainstTheStackTest {
             val workers = WorkManager.getInstance(InstrumentationRegistry.getInstrumentation().targetContext)
                 .getWorkInfosForUniqueWork(SyncWorker.UNIQUE_NAME).get().map { it.state }
             AcceptanceTrace.record("workers=$workers")
+            check(connectivity.activeNetwork == null) { "Default network returned before offline sync" }
             val offline = outbox.sync(transport) { AcceptanceTrace.record("sync phase=$it") }
             AcceptanceTrace.record("offline outcome=$offline states=${outbox.view().first().events.map { it.state }}")
             observeServer("OFFLINE", interval, 0)
@@ -150,9 +151,17 @@ class AgainstTheStackTest {
         shell("cmd wifi set-wifi-enabled ${if (on) "disabled" else "enabled"}")
         AcceptanceTrace.record("network command offline=$on active=${connectivity.activeNetwork != null}")
         withTimeout(60_000) {
-            while ((connectivity.activeNetwork != null) == on || !StackNetwork.ready(online = !on)) delay(200)
+            while (true) {
+                if ((connectivity.activeNetwork != null) != on && StackNetwork.ready(online = !on)) {
+                    val active = connectivity.activeNetwork != null
+                    if (active != on) {
+                        AcceptanceTrace.record("network settled offline=$on active=$active")
+                        break
+                    }
+                }
+                delay(200)
+            }
         }
-        AcceptanceTrace.record("network settled offline=$on active=${connectivity.activeNetwork != null}")
     }
 
     /** The host reads aggregate counts, then acknowledges over adb while the network stays put. */
